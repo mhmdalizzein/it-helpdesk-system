@@ -21,4 +21,4 @@ The goal of this project is to improve how technical support requests are organi
 
 The UI wireframes were created to show the main screens of the IT Help Desk & Ticketing Management System before implementation.
 
-[View UI Wireframes](assets/wireframes/docs/ui-wireframes.md)
+[View UI Wireframes](./assets/wireframes/docs/ui-wireframes.md)
