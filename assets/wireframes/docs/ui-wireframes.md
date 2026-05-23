@@ -4,7 +4,7 @@ This document contains the low-fidelity UI wireframes for the IT Help Desk & Tic
 
 ## 1. Login Page
 
-![Login Page](../assets/wireframes/Login-Page.png)
+![Login Page](assets/wireframes/Login-Page.png)
 
 ## 2. Register Page
 
