@@ -16,3 +16,9 @@ The goal of this project is to improve how technical support requests are organi
 - Send notifications for ticket updates
 - Dashboard for ticket statistics and reports
 - Database schema and ERD design
+
+## UI Wireframes
+
+The UI wireframes were created to show the main screens of the IT Help Desk & Ticketing Management System before implementation.
+
+[View UI Wireframes](docs/ui-wireframes.md)
