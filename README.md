@@ -17,7 +17,7 @@ The goal of this project is to improve how technical support requests are organi
 - Dashboard for ticket statistics and reports
 - Database schema and ERD design
 
-- ## System Workflows
+## System Workflows
 
 The system workflow diagrams show how users interact with the IT Help Desk & Ticketing Management System, including login, ticket creation, ticket assignment, ticket resolution, notifications, file attachments, and admin user management.
 
