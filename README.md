@@ -27,4 +27,4 @@ The system workflow diagrams show how users interact with the IT Help Desk & Tic
 
 The UI wireframes were created to show the main screens of the IT Help Desk & Ticketing Management System before implementation.
 
-[View UI Wireframes](./assets/wireframes/docs/ui-wireframes.md)
+[View UI Wireframes](docs/ui-wireframes.md)
