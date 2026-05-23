@@ -28,3 +28,15 @@ The system workflow diagrams show how users interact with the IT Help Desk & Tic
 The UI wireframes were created to show the main screens of the IT Help Desk & Ticketing Management System before implementation.
 
 [View UI Wireframes](docs/ui-wireframes.md)
+
+## Database
+
+The project includes a PostgreSQL database schema for the IT Help Desk & Ticketing Management System.
+
+The database stores users, roles, support tickets, ticket categories, priorities, statuses, comments, attachments, notifications, and activity logs.
+
+Database files:
+
+- [Database Schema](./database/schema.sql)
+- [Seed Data](./database/seed.sql)
+- [Database ERD](./database/erd.md)
