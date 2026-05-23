@@ -21,7 +21,7 @@ The goal of this project is to improve how technical support requests are organi
 
 The system workflow diagrams show how users interact with the IT Help Desk & Ticketing Management System, including login, ticket creation, ticket assignment, ticket resolution, notifications, file attachments, and admin user management.
 
-[View System Workflows](./system-workflow.md)
+[View System Workflows](docs/system-workflow.md)
 
 ## UI Wireframes
 
