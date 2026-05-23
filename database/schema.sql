@@ -1,137 +1,205 @@
-CREATE TABLE Role (
-    RoleId SERIAL PRIMARY KEY,
-    RoleName VARCHAR(50) NOT NULL UNIQUE,
-    Description VARCHAR(255)
+DROP TABLE IF EXISTS activity_logs;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS ticket_attachments;
+DROP TABLE IF EXISTS ticket_comments;
+DROP TABLE IF EXISTS tickets;
+DROP TABLE IF EXISTS statuses;
+DROP TABLE IF EXISTS priorities;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS user_accounts;
+DROP TABLE IF EXISTS roles;
+
+CREATE TABLE roles (
+    role_id SERIAL PRIMARY KEY,
+    role_name VARCHAR(50) NOT NULL UNIQUE,
+    description VARCHAR(255)
 );
 
-CREATE TABLE UserAccount (
-    UserAccountId SERIAL PRIMARY KEY,
-    RoleId INT NOT NULL,
-    FullName VARCHAR(100) NOT NULL,
-    Email VARCHAR(150) NOT NULL UNIQUE,
-    PasswordHash VARCHAR(255) NOT NULL,
-    PhoneNumber VARCHAR(30),
-    Department VARCHAR(100),
-    IsActive BOOLEAN NOT NULL DEFAULT TRUE,
-    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt TIMESTAMP,
+CREATE TABLE user_accounts (
+    user_account_id SERIAL PRIMARY KEY,
+    role_id INT NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    phone_number VARCHAR(30),
+    department VARCHAR(100),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
 
-    CONSTRAINT FkUserAccount_RoleId
-        FOREIGN KEY (RoleId) REFERENCES Role(RoleId)
+    CONSTRAINT fk_user_accounts_role
+        FOREIGN KEY (role_id)
+        REFERENCES roles(role_id)
 );
 
-CREATE TABLE Category (
-    CategoryId SERIAL PRIMARY KEY,
-    CategoryName VARCHAR(80) NOT NULL UNIQUE,
-    Description VARCHAR(255),
-    IsActive BOOLEAN NOT NULL DEFAULT TRUE
+CREATE TABLE categories (
+    category_id SERIAL PRIMARY KEY,
+    category_name VARCHAR(80) NOT NULL UNIQUE,
+    description VARCHAR(255),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE Priority (
-    PriorityId SERIAL PRIMARY KEY,
-    PriorityName VARCHAR(50) NOT NULL UNIQUE,
-    Description VARCHAR(255),
-    SortOrder INT NOT NULL
+CREATE TABLE priorities (
+    priority_id SERIAL PRIMARY KEY,
+    priority_name VARCHAR(50) NOT NULL UNIQUE,
+    description VARCHAR(255),
+    sort_order INT NOT NULL,
+
+    CONSTRAINT chk_priorities_sort_order
+        CHECK (sort_order > 0)
 );
 
-CREATE TABLE Status (
-    StatusId SERIAL PRIMARY KEY,
-    StatusName VARCHAR(50) NOT NULL UNIQUE,
-    Description VARCHAR(255),
-    SortOrder INT NOT NULL
+CREATE TABLE statuses (
+    status_id SERIAL PRIMARY KEY,
+    status_name VARCHAR(50) NOT NULL UNIQUE,
+    description VARCHAR(255),
+    sort_order INT NOT NULL,
+
+    CONSTRAINT chk_statuses_sort_order
+        CHECK (sort_order > 0)
 );
 
-CREATE TABLE Ticket (
-    TicketId SERIAL PRIMARY KEY,
-    TicketReference VARCHAR(30) NOT NULL UNIQUE,
-    CreatedByUserAccountId INT NOT NULL,
-    AssignedToUserAccountId INT,
-    CategoryId INT NOT NULL,
-    PriorityId INT NOT NULL,
-    StatusId INT NOT NULL,
-    Title VARCHAR(150) NOT NULL,
-    Description TEXT NOT NULL,
-    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt TIMESTAMP,
-    ResolvedAt TIMESTAMP,
-    ClosedAt TIMESTAMP,
+CREATE TABLE tickets (
+    ticket_id SERIAL PRIMARY KEY,
+    ticket_reference VARCHAR(30) NOT NULL UNIQUE,
+    created_by_user_account_id INT NOT NULL,
+    assigned_to_user_account_id INT,
+    category_id INT NOT NULL,
+    priority_id INT NOT NULL,
+    status_id INT NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    description TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    resolved_at TIMESTAMP,
+    closed_at TIMESTAMP,
 
-    CONSTRAINT FkTicket_CreatedByUserAccountId
-        FOREIGN KEY (CreatedByUserAccountId) REFERENCES UserAccount(UserAccountId),
+    CONSTRAINT fk_tickets_created_by_user
+        FOREIGN KEY (created_by_user_account_id)
+        REFERENCES user_accounts(user_account_id),
 
-    CONSTRAINT FkTicket_AssignedToUserAccountId
-        FOREIGN KEY (AssignedToUserAccountId) REFERENCES UserAccount(UserAccountId),
+    CONSTRAINT fk_tickets_assigned_to_user
+        FOREIGN KEY (assigned_to_user_account_id)
+        REFERENCES user_accounts(user_account_id),
 
-    CONSTRAINT FkTicket_CategoryId
-        FOREIGN KEY (CategoryId) REFERENCES Category(CategoryId),
+    CONSTRAINT fk_tickets_category
+        FOREIGN KEY (category_id)
+        REFERENCES categories(category_id),
 
-    CONSTRAINT FkTicket_PriorityId
-        FOREIGN KEY (PriorityId) REFERENCES Priority(PriorityId),
+    CONSTRAINT fk_tickets_priority
+        FOREIGN KEY (priority_id)
+        REFERENCES priorities(priority_id),
 
-    CONSTRAINT FkTicket_StatusId
-        FOREIGN KEY (StatusId) REFERENCES Status(StatusId)
+    CONSTRAINT fk_tickets_status
+        FOREIGN KEY (status_id)
+        REFERENCES statuses(status_id)
 );
 
-CREATE TABLE TicketComment (
-    TicketCommentId SERIAL PRIMARY KEY,
-    TicketId INT NOT NULL,
-    UserAccountId INT NOT NULL,
-    CommentText TEXT NOT NULL,
-    IsInternal BOOLEAN NOT NULL DEFAULT FALSE,
-    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+CREATE TABLE ticket_comments (
+    ticket_comment_id SERIAL PRIMARY KEY,
+    ticket_id INT NOT NULL,
+    user_account_id INT NOT NULL,
+    comment_text TEXT NOT NULL,
+    is_internal BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT FkTicketComment_TicketId
-        FOREIGN KEY (TicketId) REFERENCES Ticket(TicketId),
+    CONSTRAINT fk_ticket_comments_ticket
+        FOREIGN KEY (ticket_id)
+        REFERENCES tickets(ticket_id)
+        ON DELETE CASCADE,
 
-    CONSTRAINT FkTicketComment_UserAccountId
-        FOREIGN KEY (UserAccountId) REFERENCES UserAccount(UserAccountId)
+    CONSTRAINT fk_ticket_comments_user
+        FOREIGN KEY (user_account_id)
+        REFERENCES user_accounts(user_account_id)
 );
 
-CREATE TABLE TicketAttachment (
-    TicketAttachmentId SERIAL PRIMARY KEY,
-    TicketId INT NOT NULL,
-    UploadedByUserAccountId INT NOT NULL,
-    FileName VARCHAR(255) NOT NULL,
-    FilePath VARCHAR(500) NOT NULL,
-    FileType VARCHAR(50) NOT NULL,
-    FileSize INT NOT NULL,
-    UploadedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+CREATE TABLE ticket_attachments (
+    ticket_attachment_id SERIAL PRIMARY KEY,
+    ticket_id INT NOT NULL,
+    uploaded_by_user_account_id INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_type VARCHAR(50) NOT NULL,
+    file_size INT NOT NULL,
+    uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT FkTicketAttachment_TicketId
-        FOREIGN KEY (TicketId) REFERENCES Ticket(TicketId),
+    CONSTRAINT fk_ticket_attachments_ticket
+        FOREIGN KEY (ticket_id)
+        REFERENCES tickets(ticket_id)
+        ON DELETE CASCADE,
 
-    CONSTRAINT FkTicketAttachment_UploadedByUserAccountId
-        FOREIGN KEY (UploadedByUserAccountId) REFERENCES UserAccount(UserAccountId)
+    CONSTRAINT fk_ticket_attachments_user
+        FOREIGN KEY (uploaded_by_user_account_id)
+        REFERENCES user_accounts(user_account_id),
+
+    CONSTRAINT chk_ticket_attachments_file_size
+        CHECK (file_size > 0)
 );
 
-CREATE TABLE Notification (
-    NotificationId SERIAL PRIMARY KEY,
-    UserAccountId INT NOT NULL,
-    TicketId INT,
-    Title VARCHAR(150) NOT NULL,
-    Message VARCHAR(500) NOT NULL,
-    IsRead BOOLEAN NOT NULL DEFAULT FALSE,
-    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ReadAt TIMESTAMP,
+CREATE TABLE notifications (
+    notification_id SERIAL PRIMARY KEY,
+    user_account_id INT NOT NULL,
+    ticket_id INT,
+    title VARCHAR(150) NOT NULL,
+    message VARCHAR(500) NOT NULL,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP,
 
-    CONSTRAINT FkNotification_UserAccountId
-        FOREIGN KEY (UserAccountId) REFERENCES UserAccount(UserAccountId),
+    CONSTRAINT fk_notifications_user
+        FOREIGN KEY (user_account_id)
+        REFERENCES user_accounts(user_account_id),
 
-    CONSTRAINT FkNotification_TicketId
-        FOREIGN KEY (TicketId) REFERENCES Ticket(TicketId)
+    CONSTRAINT fk_notifications_ticket
+        FOREIGN KEY (ticket_id)
+        REFERENCES tickets(ticket_id)
+        ON DELETE CASCADE
 );
 
-CREATE TABLE ActivityLog (
-    ActivityLogId SERIAL PRIMARY KEY,
-    UserAccountId INT,
-    TicketId INT,
-    Action VARCHAR(100) NOT NULL,
-    Description VARCHAR(500),
-    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+CREATE TABLE activity_logs (
+    activity_log_id SERIAL PRIMARY KEY,
+    user_account_id INT,
+    ticket_id INT,
+    action VARCHAR(100) NOT NULL,
+    description VARCHAR(500),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT FkActivityLog_UserAccountId
-        FOREIGN KEY (UserAccountId) REFERENCES UserAccount(UserAccountId),
+    CONSTRAINT fk_activity_logs_user
+        FOREIGN KEY (user_account_id)
+        REFERENCES user_accounts(user_account_id),
 
-    CONSTRAINT FkActivityLog_TicketId
-        FOREIGN KEY (TicketId) REFERENCES Ticket(TicketId)
+    CONSTRAINT fk_activity_logs_ticket
+        FOREIGN KEY (ticket_id)
+        REFERENCES tickets(ticket_id)
+        ON DELETE CASCADE
 );
+
+CREATE INDEX idx_user_accounts_role_id
+    ON user_accounts(role_id);
+
+CREATE INDEX idx_tickets_created_by_user_account_id
+    ON tickets(created_by_user_account_id);
+
+CREATE INDEX idx_tickets_assigned_to_user_account_id
+    ON tickets(assigned_to_user_account_id);
+
+CREATE INDEX idx_tickets_category_id
+    ON tickets(category_id);
+
+CREATE INDEX idx_tickets_priority_id
+    ON tickets(priority_id);
+
+CREATE INDEX idx_tickets_status_id
+    ON tickets(status_id);
+
+CREATE INDEX idx_ticket_comments_ticket_id
+    ON ticket_comments(ticket_id);
+
+CREATE INDEX idx_ticket_attachments_ticket_id
+    ON ticket_attachments(ticket_id);
+
+CREATE INDEX idx_notifications_user_account_id
+    ON notifications(user_account_id);
+
+CREATE INDEX idx_activity_logs_ticket_id
+    ON activity_logs(ticket_id);
