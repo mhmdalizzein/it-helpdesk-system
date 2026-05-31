@@ -8,22 +8,10 @@
     ".NETCoreApp,Version=v10.0": {
       "HelpDesk.API/1.0.0": {
         "dependencies": {
-          "Microsoft.AspNetCore.OpenApi": "10.0.8",
           "Swashbuckle.AspNetCore": "10.2.0"
         },
         "runtime": {
           "HelpDesk.API.dll": {}
-        }
-      },
-      "Microsoft.AspNetCore.OpenApi/10.0.8": {
-        "dependencies": {
-          "Microsoft.OpenApi": "2.4.1"
-        },
-        "runtime": {
-          "lib/net10.0/Microsoft.AspNetCore.OpenApi.dll": {
-            "assemblyVersion": "10.0.8.0",
-            "fileVersion": "10.0.826.23019"
-          }
         }
       },
       "Microsoft.OpenApi/2.4.1": {
@@ -78,13 +66,6 @@
       "type": "project",
       "serviceable": false,
       "sha512": ""
-    },
-    "Microsoft.AspNetCore.OpenApi/10.0.8": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-cw24xHE2QaWwyEG9GQwFbjboyabub6Vd80DIItUGENzcQOa/BEnTrXsg2GADqWTmY/3ycqk9ToLGjgvF/VRlGA==",
-      "path": "microsoft.aspnetcore.openapi/10.0.8",
-      "hashPath": "microsoft.aspnetcore.openapi.10.0.8.nupkg.sha512"
     },
     "Microsoft.OpenApi/2.4.1": {
       "type": "package",
