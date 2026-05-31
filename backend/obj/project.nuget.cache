@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "Md2hPQPXpbo=",
+  "dgSpecHash": "V+xKPnQBE08=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Admin\\Desktop\\it-helpdesk-system\\backend\\HelpDesk.API\\HelpDesk.API.csproj",
+  "projectFilePath": "C:\\Users\\Admin\\Desktop\\it-helpdesk-system\\backend\\HelpDesk.API.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Admin\\.nuget\\packages\\microsoft.aspnetcore.openapi\\10.0.8\\microsoft.aspnetcore.openapi.10.0.8.nupkg.sha512",
     "C:\\Users\\Admin\\.nuget\\packages\\microsoft.extensions.apidescription.server\\10.0.0\\microsoft.extensions.apidescription.server.10.0.0.nupkg.sha512",
