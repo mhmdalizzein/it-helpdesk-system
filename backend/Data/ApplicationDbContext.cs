@@ -132,5 +132,33 @@ public class ApplicationDbContext : DbContext
             .WithMany(ticket => ticket.ActivityLogs)
             .HasForeignKey(log => log.TicketId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Role>().HasData(
+    new Role { RoleId = 1, RoleName = "Admin", Description = "System administrator with full access" },
+    new Role { RoleId = 2, RoleName = "Agent", Description = "Support agent who handles tickets" },
+    new Role { RoleId = 3, RoleName = "User", Description = "Regular user who creates tickets" }
+);
+
+modelBuilder.Entity<Status>().HasData(
+    new Status { StatusId = 1, StatusName = "Open", Description = "Ticket has been created and is waiting for action", SortOrder = 1 },
+    new Status { StatusId = 2, StatusName = "In Progress", Description = "Ticket is currently being handled", SortOrder = 2 },
+    new Status { StatusId = 3, StatusName = "Resolved", Description = "Ticket issue has been resolved", SortOrder = 3 },
+    new Status { StatusId = 4, StatusName = "Closed", Description = "Ticket is closed", SortOrder = 4 }
+);
+
+modelBuilder.Entity<Priority>().HasData(
+    new Priority { PriorityId = 1, PriorityName = "Low", Description = "Low priority issue", SortOrder = 1 },
+    new Priority { PriorityId = 2, PriorityName = "Medium", Description = "Normal priority issue", SortOrder = 2 },
+    new Priority { PriorityId = 3, PriorityName = "High", Description = "Important issue that needs quick attention", SortOrder = 3 },
+    new Priority { PriorityId = 4, PriorityName = "Critical", Description = "Urgent issue affecting major work", SortOrder = 4 }
+);
+
+modelBuilder.Entity<Category>().HasData(
+    new Category { CategoryId = 1, CategoryName = "Hardware", Description = "Issues related to physical devices", IsActive = true },
+    new Category { CategoryId = 2, CategoryName = "Software", Description = "Issues related to applications or software", IsActive = true },
+    new Category { CategoryId = 3, CategoryName = "Network", Description = "Issues related to internet, Wi-Fi, or connectivity", IsActive = true },
+    new Category { CategoryId = 4, CategoryName = "Account Access", Description = "Issues related to login, password, or permissions", IsActive = true },
+    new Category { CategoryId = 5, CategoryName = "Other", Description = "General support requests", IsActive = true }
+);
     }
 }
