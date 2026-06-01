@@ -1,1 +1,9 @@
+# .NET build outputs
+**/bin/
+**/obj/
+
+# Local development secrets
 backend/appsettings.Development.json
+
+# Secret cleanup files
+replacements.txt
