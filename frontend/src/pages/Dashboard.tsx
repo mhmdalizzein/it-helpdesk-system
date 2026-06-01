@@ -1,17 +1,12 @@
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { getCurrentUser, logoutUser } from '../services/authService'
 import '../App.css'
 
-// Temporary mock data. Replace with API/auth data when backend is connected.
-
-type Role = 'Admin' | 'IT Support Agent' | 'Employee' | 'Manager'
+type Role = 'Admin' | 'Agent' | 'User'
 
 type TicketStatus = 'Open' | 'In Progress' | 'Pending' | 'Resolved' | 'Closed'
 type TicketPriority = 'Low' | 'Medium' | 'High' | 'Critical'
-
-const currentUser = {
-  fullName: 'Admin User',
-  email: 'admin.user@company.com',
-  role: 'Admin' as Role,
-}
 
 const dashboardStats = [
   {
@@ -190,22 +185,33 @@ const notifications = [
   },
 ]
 
-const quickActions = [
-  { label: 'Create Ticket', variant: 'primary' as const },
-  { label: 'View Tickets', variant: 'secondary' as const },
-  { label: 'Assign Ticket', variant: 'secondary' as const },
-  { label: 'Generate Report', variant: 'secondary' as const },
-]
+const quickActionsByRole: Record<Role, { label: string; variant: 'primary' | 'secondary' }[]> = {
+  Admin: [
+    { label: 'View All Tickets', variant: 'primary' },
+    { label: 'Assign Ticket', variant: 'secondary' },
+    { label: 'Manage Users', variant: 'secondary' },
+    { label: 'Generate Report', variant: 'secondary' },
+  ],
+  Agent: [
+    { label: 'View Assigned Tickets', variant: 'primary' },
+    { label: 'Update Ticket Status', variant: 'secondary' },
+    { label: 'Add Internal Note', variant: 'secondary' },
+  ],
+  User: [
+    { label: 'Create Ticket', variant: 'primary' },
+    { label: 'View My Tickets', variant: 'secondary' },
+    { label: 'Check Notifications', variant: 'secondary' },
+  ],
+}
 
-// Future role-based nav: filter by currentUser.role when auth is connected.
 const sidebarNavItems = [
-  { label: 'Dashboard', href: '#', active: true, roles: ['Admin', 'IT Support Agent', 'Employee', 'Manager'] },
-  { label: 'Tickets', href: '#', active: false, roles: ['Admin', 'IT Support Agent', 'Employee', 'Manager'] },
-  { label: 'Create Ticket', href: '#', active: false, roles: ['Admin', 'IT Support Agent', 'Employee', 'Manager'] },
-  { label: 'Notifications', href: '#', active: false, roles: ['Admin', 'IT Support Agent', 'Employee', 'Manager'] },
-  { label: 'Reports', href: '#', active: false, roles: ['Admin', 'Manager'] },
-  { label: 'Admin Settings', href: '#', active: false, roles: ['Admin'] },
-  { label: 'User Profile', href: '#', active: false, roles: ['Admin', 'IT Support Agent', 'Employee', 'Manager'] },
+  { label: 'Dashboard', href: '#', active: true, roles: ['Admin', 'Agent', 'User'] as Role[] },
+  { label: 'Tickets', href: '#', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
+  { label: 'Create Ticket', href: '#', active: false, roles: ['User'] as Role[] },
+  { label: 'Notifications', href: '#', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
+  { label: 'Reports', href: '#', active: false, roles: ['Admin'] as Role[] },
+  { label: 'Admin Settings', href: '#', active: false, roles: ['Admin'] as Role[] },
+  { label: 'User Profile', href: '#', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
 ]
 
 const accentSwatchClass: Record<string, string> = {
@@ -270,14 +276,41 @@ function formatDate() {
   }).format(new Date())
 }
 
+function getRoleIntro(role: Role) {
+  if (role === 'Admin') {
+    return 'Monitor all support requests, manage users, and review system-wide activity.'
+  }
+
+  if (role === 'Agent') {
+    return 'Track assigned tickets, update progress, and manage support workflow.'
+  }
+
+  return 'Create support tickets, follow your requests, and view important updates.'
+}
+
 function Dashboard() {
+  const navigate = useNavigate()
+  const currentUser = getCurrentUser()
+
+  useEffect(() => {
+    if (!currentUser) {
+      navigate('/')
+    }
+  }, [currentUser, navigate])
+
+  if (!currentUser) {
+    return null
+  }
+
+  const userRole = currentUser.role as Role
   const unreadCount = notifications.filter((n) => n.unread).length
   const maxCategoryCount = Math.max(...categoryBreakdown.map((c) => c.count))
   const maxPriorityCount = Math.max(...priorityBreakdown.map((p) => p.count))
+  const visibleNavItems = sidebarNavItems.filter((item) => item.roles.includes(userRole))
+  const quickActions = quickActionsByRole[userRole]
 
   return (
     <div className="dashboard-layout min-h-screen flex bg-[#f6f2ec] text-[#17211d]">
-      {/* Sidebar */}
       <aside
         className="dashboard-sidebar hidden md:flex md:w-64 lg:w-72 shrink-0 flex-col relative overflow-hidden"
         aria-label="Main navigation"
@@ -294,7 +327,6 @@ function Dashboard() {
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[rgba(2,11,9,0.35)] pointer-events-none" />
 
         <div className="relative z-10 flex flex-col h-full p-6 lg:p-7">
-          {/* Brand */}
           <div className="flex items-center gap-3.5 mb-10">
             <div className="w-11 h-11 grid place-items-center rounded-lg bg-white text-[#10251f] shadow-[0_18px_34px_rgba(0,0,0,0.18)]">
               <SparkIcon className="w-[22px] h-[22px]" />
@@ -305,9 +337,8 @@ function Dashboard() {
             </div>
           </div>
 
-          {/* Nav */}
           <nav className="flex-1 space-y-1">
-            {sidebarNavItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <a
                 key={item.label}
                 href={item.href}
@@ -324,7 +355,6 @@ function Dashboard() {
             ))}
           </nav>
 
-          {/* User area */}
           <div className="mt-auto pt-6 border-t border-[rgba(255,255,255,0.12)]">
             <div className="px-3.5 py-3 rounded-lg bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.1)]">
               <p className="text-[#f7fbf7] text-sm font-bold m-0 truncate">{currentUser.fullName}</p>
@@ -332,14 +362,23 @@ function Dashboard() {
               <span className="inline-block mt-2 px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-[rgba(74,213,178,0.18)] text-[#4ad5b2] border border-[rgba(74,213,178,0.25)]">
                 {currentUser.role}
               </span>
+
+              <button
+                type="button"
+                className="block mt-3 w-full px-3 py-2 rounded-md text-xs font-bold bg-white/10 text-white hover:bg-white/15 transition-colors"
+                onClick={() => {
+                  logoutUser()
+                  navigate('/')
+                }}
+              >
+                Logout
+              </button>
             </div>
           </div>
         </div>
       </aside>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile header bar */}
         <header className="md:hidden flex items-center gap-3 px-5 py-4 bg-[#143a34] text-white">
           <div className="w-9 h-9 grid place-items-center rounded-lg bg-white text-[#10251f]">
             <SparkIcon className="w-[18px] h-[18px]" />
@@ -351,13 +390,11 @@ function Dashboard() {
         </header>
 
         <main className="flex-1 overflow-auto">
-          {/* Subtle background shapes */}
           <div className="relative">
             <div className="absolute top-0 right-0 w-[480px] h-[480px] rounded-full bg-[rgba(25,185,154,0.06)] blur-3xl pointer-events-none -translate-y-1/3 translate-x-1/4" />
             <div className="absolute bottom-0 left-0 w-[360px] h-[360px] rounded-full bg-[rgba(12,59,52,0.04)] blur-3xl pointer-events-none translate-y-1/3 -translate-x-1/4" />
 
             <div className="relative z-10 px-5 py-6 sm:px-6 lg:px-8 lg:py-8 max-w-[1440px]">
-              {/* Top header */}
               <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
                 <div>
                   <p className="text-[#a3493d] text-xs font-extrabold uppercase tracking-wide m-0">Overview</p>
@@ -365,7 +402,7 @@ function Dashboard() {
                     Dashboard
                   </h1>
                   <p className="text-[#6b716d] text-[15px] leading-relaxed mt-2 mb-0 max-w-xl">
-                    Monitor support requests, ticket status, and recent activity.
+                    {getRoleIntro(userRole)}
                   </p>
                 </div>
                 <div className="flex flex-col sm:items-end gap-2 shrink-0">
@@ -380,7 +417,6 @@ function Dashboard() {
                 </div>
               </header>
 
-              {/* Overview cards */}
               <section aria-label="Dashboard statistics" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
                 {dashboardStats.map((stat) => (
                   <article
@@ -395,9 +431,7 @@ function Dashboard() {
                 ))}
               </section>
 
-              {/* Main grid: table + side panels */}
               <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 mb-6">
-                {/* Recent Tickets */}
                 <section
                   aria-label="Recent tickets"
                   className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] shadow-[0_22px_52px_rgba(50,36,22,0.08)] overflow-hidden"
@@ -451,15 +485,13 @@ function Dashboard() {
                   </div>
                 </section>
 
-                {/* Right column: Quick Actions + Notifications */}
                 <div className="space-y-6">
-                  {/* Quick Actions */}
                   <section
                     aria-label="Quick actions"
                     className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_22px_52px_rgba(50,36,22,0.08)]"
                   >
                     <p className="text-[#52625d] text-sm font-bold m-0">Quick Actions</p>
-                    <p className="text-[#8a9690] text-xs mt-1 mb-4">Common workflow shortcuts</p>
+                    <p className="text-[#8a9690] text-xs mt-1 mb-4">Common workflow shortcuts for {currentUser.role}</p>
                     <div className="grid grid-cols-1 gap-2.5">
                       {quickActions.map((action) => (
                         <button
@@ -479,7 +511,6 @@ function Dashboard() {
                     </div>
                   </section>
 
-                  {/* Notifications Preview */}
                   <section
                     aria-label="Notifications"
                     className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_22px_52px_rgba(50,36,22,0.08)]"
@@ -525,9 +556,7 @@ function Dashboard() {
                 </div>
               </div>
 
-              {/* Analytics row */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                {/* Status Overview */}
                 <section
                   aria-label="Status overview"
                   className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_22px_52px_rgba(50,36,22,0.08)]"
@@ -557,7 +586,6 @@ function Dashboard() {
                   </div>
                 </section>
 
-                {/* Category Breakdown */}
                 <section
                   aria-label="Tickets by category"
                   className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_22px_52px_rgba(50,36,22,0.08)]"
@@ -582,7 +610,6 @@ function Dashboard() {
                   </div>
                 </section>
 
-                {/* Priority Breakdown */}
                 <section
                   aria-label="Priority breakdown"
                   className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_22px_52px_rgba(50,36,22,0.08)]"
@@ -610,7 +637,6 @@ function Dashboard() {
                 </section>
               </div>
 
-              {/* Recent Activity */}
               <section
                 aria-label="Recent activity"
                 className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_22px_52px_rgba(50,36,22,0.08)]"
@@ -632,12 +658,6 @@ function Dashboard() {
                   ))}
                 </ul>
               </section>
-
-              {/* Future role-based sections placeholder */}
-              {/* Admin: user management, categories, system settings */}
-              {/* IT Support Agent: assigned tickets, workflow actions */}
-              {/* Employee: own submitted tickets, status tracking */}
-              {/* Manager: team tickets, reports */}
             </div>
           </div>
         </main>

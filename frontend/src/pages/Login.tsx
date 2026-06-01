@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { loginUser } from '../services/authService'
 import '../App.css'
 
 type IconProps = {
@@ -91,17 +93,41 @@ function ArrowIcon({ className }: IconProps) {
 }
 
 function Login() {
+  const navigate = useNavigate()
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   const canSubmit = useMemo(() => {
-    return email.trim().length > 0 && password.trim().length > 0
-  }, [email, password])
+    return email.trim().length > 0 && password.trim().length > 0 && !loading
+  }, [email, password, loading])
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    if (!canSubmit) {
+      return
+    }
+
+    setError('')
+    setLoading(true)
+
+    try {
+      await loginUser({
+        email: email.trim(),
+        password,
+      })
+
+      navigate('/dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -225,8 +251,10 @@ function Login() {
               <a href="#forgot-password">Forgot password?</a>
             </div>
 
+            {error && <p className="login-error">{error}</p>}
+
             <button className="submit-button" disabled={!canSubmit} type="submit">
-              <span>Sign in</span>
+              <span>{loading ? 'Signing in...' : 'Sign in'}</span>
               <ArrowIcon />
             </button>
           </form>
