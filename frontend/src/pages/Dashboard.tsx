@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { getCurrentUser, logoutUser } from '../services/authService'
 import '../App.css'
 
@@ -205,9 +205,9 @@ const quickActionsByRole: Record<Role, { label: string; variant: 'primary' | 'se
 }
 
 const sidebarNavItems = [
-  { label: 'Dashboard', href: '#', active: true, roles: ['Admin', 'Agent', 'User'] as Role[] },
-  { label: 'Tickets', href: '#', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
-  { label: 'Create Ticket', href: '#', active: false, roles: ['User'] as Role[] },
+  { label: 'Dashboard', href: '/dashboard', active: true, roles: ['Admin', 'Agent', 'User'] as Role[] },
+  { label: 'Tickets', href: '/tickets', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
+  { label: 'Create Ticket', href: '/tickets/create', active: false, roles: ['User'] as Role[] },
   { label: 'Notifications', href: '#', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
   { label: 'Reports', href: '#', active: false, roles: ['Admin'] as Role[] },
   { label: 'Admin Settings', href: '#', active: false, roles: ['Admin'] as Role[] },
@@ -288,8 +288,22 @@ function getRoleIntro(role: Role) {
   return 'Create support tickets, follow your requests, and view important updates.'
 }
 
+function getActionRoute(label: string): string | null {
+  const map: Record<string, string> = {
+    'View All Tickets': '/tickets',
+    'View Assigned Tickets': '/tickets',
+    'View My Tickets': '/tickets',
+    'Create Ticket': '/tickets/create',
+    'Assign Ticket': '/tickets',
+    'Update Ticket Status': '/tickets',
+    'Add Internal Note': '/tickets',
+  }
+  return map[label] || null
+}
+
 function Dashboard() {
   const navigate = useNavigate()
+  const location = useLocation()
   const currentUser = getCurrentUser()
 
   useEffect(() => {
@@ -310,7 +324,7 @@ function Dashboard() {
   const quickActions = quickActionsByRole[userRole]
 
   return (
-    <div className="dashboard-layout min-h-screen flex bg-[#f6f2ec] text-[#17211d]">
+    <div className="dashboard-layout h-screen flex bg-[#f6f2ec] text-[#17211d]">
       <aside
         className="dashboard-sidebar hidden md:flex md:w-64 lg:w-72 shrink-0 flex-col relative overflow-hidden"
         aria-label="Main navigation"
@@ -338,21 +352,24 @@ function Dashboard() {
           </div>
 
           <nav className="flex-1 space-y-1">
-            {visibleNavItems.map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                className={`
-                  block px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-colors duration-150
-                  ${item.active
-                    ? 'bg-[rgba(255,255,255,0.14)] text-white border border-[rgba(255,255,255,0.12)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
-                    : 'text-[rgba(247,251,247,0.72)] hover:bg-[rgba(255,255,255,0.08)] hover:text-[rgba(247,251,247,0.92)]'
-                  }
-                `}
-              >
-                {item.label}
-              </a>
-            ))}
+            {visibleNavItems.map((item) => {
+              const active = location.pathname === item.href
+              return (
+                <Link
+                  key={item.label}
+                  to={item.href}
+                  className={`
+                    block px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-colors duration-150
+                    ${active
+                      ? 'bg-[rgba(255,255,255,0.14)] text-white border border-[rgba(255,255,255,0.12)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
+                      : 'text-[rgba(247,251,247,0.72)] hover:bg-[rgba(255,255,255,0.08)] hover:text-[rgba(247,251,247,0.92)]'
+                    }
+                  `}
+                >
+                  {item.label}
+                </Link>
+              )
+            })}
           </nav>
 
           <div className="mt-auto pt-6 border-t border-[rgba(255,255,255,0.12)]">
@@ -389,7 +406,7 @@ function Dashboard() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 min-h-0 overflow-y-auto">
           <div className="relative">
             <div className="absolute top-0 right-0 w-[480px] h-[480px] rounded-full bg-[rgba(25,185,154,0.06)] blur-3xl pointer-events-none -translate-y-1/3 translate-x-1/4" />
             <div className="absolute bottom-0 left-0 w-[360px] h-[360px] rounded-full bg-[rgba(12,59,52,0.04)] blur-3xl pointer-events-none translate-y-1/3 -translate-x-1/4" />
@@ -493,21 +510,25 @@ function Dashboard() {
                     <p className="text-[#52625d] text-sm font-bold m-0">Quick Actions</p>
                     <p className="text-[#8a9690] text-xs mt-1 mb-4">Common workflow shortcuts for {currentUser.role}</p>
                     <div className="grid grid-cols-1 gap-2.5">
-                      {quickActions.map((action) => (
-                        <button
-                          key={action.label}
-                          type="button"
-                          className={`
-                            w-full px-4 py-3 rounded-lg text-sm font-bold transition-all duration-150
-                            ${action.variant === 'primary'
-                              ? 'bg-[#143a34] text-white hover:bg-[#0d2d28] hover:-translate-y-px shadow-[0_4px_12px_rgba(20,58,52,0.2)]'
-                              : 'bg-[#faf9f5] text-[#26322e] border border-[#ddded8] hover:bg-white hover:border-[#19b99a] hover:shadow-[0_0_0_3px_rgba(25,185,154,0.1)]'
-                            }
-                          `}
-                        >
-                          {action.label}
-                        </button>
-                      ))}
+                      {quickActions.map((action) => {
+                        const actionRoute = getActionRoute(action.label)
+                        return (
+                          <button
+                            key={action.label}
+                            type="button"
+                            onClick={() => actionRoute && navigate(actionRoute)}
+                            className={`
+                              w-full px-4 py-3 rounded-lg text-sm font-bold transition-all duration-150
+                              ${action.variant === 'primary'
+                                ? 'bg-[#143a34] text-white hover:bg-[#0d2d28] hover:-translate-y-px shadow-[0_4px_12px_rgba(20,58,52,0.2)]'
+                                : 'bg-[#faf9f5] text-[#26322e] border border-[#ddded8] hover:bg-white hover:border-[#19b99a] hover:shadow-[0_0_0_3px_rgba(25,185,154,0.1)]'
+                              }
+                            `}
+                          >
+                            {action.label}
+                          </button>
+                        )
+                      })}
                     </div>
                   </section>
 
