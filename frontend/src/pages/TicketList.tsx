@@ -21,14 +21,24 @@ const priorityStyles: Record<string, string> = {
 function SparkIcon({ className = "" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+      <path
+        d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
     </svg>
   );
 }
 
 export default function TicketList() {
   const navigate = useNavigate();
-  const currentUser = getCurrentUser();
+
+  // FIX: store currentUser once so it does not create a new object every render
+  const [currentUser] = useState(() => getCurrentUser());
+
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -38,9 +48,12 @@ export default function TicketList() {
       navigate("/");
       return;
     }
-    (async () => {
+
+    const loadTickets = async () => {
       try {
         setLoading(true);
+        setError("");
+
         const data = await getTickets();
         setTickets(data);
       } catch (err) {
@@ -49,8 +62,10 @@ export default function TicketList() {
       } finally {
         setLoading(false);
       }
-    })();
-  }, []);
+    };
+
+    loadTickets();
+  }, [currentUser, navigate]);
 
   if (!currentUser) return null;
 
@@ -67,6 +82,7 @@ export default function TicketList() {
               <p className="text-[rgba(247,251,247,0.7)] text-xs m-0">Tickets</p>
             </div>
           </div>
+
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -75,6 +91,7 @@ export default function TicketList() {
             >
               Dashboard
             </button>
+
             <button
               type="button"
               onClick={() => navigate("/tickets/create")}
@@ -82,9 +99,13 @@ export default function TicketList() {
             >
               + New Ticket
             </button>
+
             <button
               type="button"
-              onClick={() => { logoutUser(); navigate("/"); }}
+              onClick={() => {
+                logoutUser();
+                navigate("/");
+              }}
               className="px-3 py-1.5 rounded-md text-xs font-bold bg-white/10 text-white hover:bg-white/15 transition-colors"
             >
               Logout
@@ -96,9 +117,14 @@ export default function TicketList() {
           <div className="max-w-[1440px] mx-auto">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-[clamp(24px,3vw,32px)] font-[850] text-[#17211d] m-0">Tickets</h1>
-                <p className="text-[#6b716d] text-sm mt-1 m-0">Manage all support requests</p>
+                <h1 className="text-[clamp(24px,3vw,32px)] font-[850] text-[#17211d] m-0">
+                  Tickets
+                </h1>
+                <p className="text-[#6b716d] text-sm mt-1 m-0">
+                  Manage all support requests
+                </p>
               </div>
+
               <button
                 type="button"
                 onClick={() => navigate("/tickets/create")}
@@ -115,22 +141,39 @@ export default function TicketList() {
             )}
 
             {loading ? (
-              <div className="text-center py-12 text-[#8a9690] text-sm">Loading tickets...</div>
+              <div className="text-center py-12 text-[#8a9690] text-sm">
+                Loading tickets...
+              </div>
             ) : tickets.length === 0 ? (
-              <div className="text-center py-12 text-[#8a9690] text-sm">No tickets found.</div>
+              <div className="text-center py-12 text-[#8a9690] text-sm">
+                No tickets found.
+              </div>
             ) : (
               <div className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] shadow-[0_22px_52px_rgba(50,36,22,0.08)] overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[800px] text-sm">
                     <thead>
                       <tr className="border-b border-[rgba(22,35,31,0.09)] bg-[#faf9f5]">
-                        {["Reference", "Title", "Category", "Priority", "Status", "Created By", "Assigned To", "Updated"].map((col) => (
-                          <th key={col} className="px-4 py-3 text-left text-xs font-bold text-[#586760] uppercase tracking-wide whitespace-nowrap">
+                        {[
+                          "Reference",
+                          "Title",
+                          "Category",
+                          "Priority",
+                          "Status",
+                          "Created By",
+                          "Assigned To",
+                          "Updated",
+                        ].map((col) => (
+                          <th
+                            key={col}
+                            className="px-4 py-3 text-left text-xs font-bold text-[#586760] uppercase tracking-wide whitespace-nowrap"
+                          >
                             {col}
                           </th>
                         ))}
                       </tr>
                     </thead>
+
                     <tbody>
                       {tickets.map((ticket) => (
                         <tr
@@ -138,21 +181,46 @@ export default function TicketList() {
                           onClick={() => navigate(`/tickets/${ticket.ticketId}`)}
                           className="border-b border-[rgba(22,35,31,0.06)] hover:bg-[#faf9f5] transition-colors cursor-pointer"
                         >
-                          <td className="px-4 py-3.5 font-bold text-[#143a34] whitespace-nowrap">{ticket.ticketReference}</td>
-                          <td className="px-4 py-3.5 font-medium text-[#26322e] max-w-[200px] truncate">{ticket.title}</td>
-                          <td className="px-4 py-3.5 text-[#586760] whitespace-nowrap">{ticket.category}</td>
+                          <td className="px-4 py-3.5 font-bold text-[#143a34] whitespace-nowrap">
+                            {ticket.ticketReference}
+                          </td>
+
+                          <td className="px-4 py-3.5 font-medium text-[#26322e] max-w-[200px] truncate">
+                            {ticket.title}
+                          </td>
+
+                          <td className="px-4 py-3.5 text-[#586760] whitespace-nowrap">
+                            {ticket.category}
+                          </td>
+
                           <td className="px-4 py-3.5">
-                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold border ${priorityStyles[ticket.priority] || ""}`}>
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-xs font-bold border ${
+                                priorityStyles[ticket.priority] || ""
+                              }`}
+                            >
                               {ticket.priority}
                             </span>
                           </td>
+
                           <td className="px-4 py-3.5">
-                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold border ${statusStyles[ticket.status] || ""}`}>
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-xs font-bold border ${
+                                statusStyles[ticket.status] || ""
+                              }`}
+                            >
                               {ticket.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3.5 text-[#586760] whitespace-nowrap">{ticket.createdBy}</td>
-                          <td className="px-4 py-3.5 text-[#586760] whitespace-nowrap">{ticket.assignedTo || "Unassigned"}</td>
+
+                          <td className="px-4 py-3.5 text-[#586760] whitespace-nowrap">
+                            {ticket.createdBy}
+                          </td>
+
+                          <td className="px-4 py-3.5 text-[#586760] whitespace-nowrap">
+                            {ticket.assignedTo || "Unassigned"}
+                          </td>
+
                           <td className="px-4 py-3.5 text-[#8a9690] whitespace-nowrap">
                             {ticket.updatedAt
                               ? new Date(ticket.updatedAt).toLocaleDateString()
