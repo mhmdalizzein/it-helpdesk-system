@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   getNotifications,
@@ -43,46 +44,68 @@ function formatNotificationTime(value: string) {
 export default function NotificationBell({ variant = "dark" }: NotificationBellProps) {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 360 });
 
-  useEffect(() => {
-    let cancelled = false;
+  const positionDropdown = useCallback(() => {
+    const anchor = containerRef.current;
+    if (!anchor) return;
 
-    async function loadNotifications() {
-      try {
-        setLoading(true);
-        setError("");
-        const data = await getNotifications();
-        if (!cancelled) {
-          setNotifications(data);
-        }
-      } catch {
-        if (!cancelled) {
-          setError("Failed to load notifications.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+    const rect = anchor.getBoundingClientRect();
+    const width = Math.min(360, window.innerWidth - 32);
+    const left = Math.min(
+      Math.max(16, rect.right - width),
+      Math.max(16, window.innerWidth - width - 16)
+    );
+
+    setDropdownPosition({
+      top: rect.bottom + 10,
+      left,
+      width,
+    });
+  }, []);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const data = await getNotifications();
+      setNotifications(data);
+    } catch {
+      setError("Failed to load notifications.");
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-    loadNotifications();
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    positionDropdown();
+
+    window.addEventListener("resize", positionDropdown);
+    window.addEventListener("scroll", positionDropdown, true);
 
     return () => {
-      cancelled = true;
+      window.removeEventListener("resize", positionDropdown);
+      window.removeEventListener("scroll", positionDropdown, true);
     };
-  }, []);
+  }, [open, positionDropdown]);
 
   useEffect(() => {
     if (!open) return;
 
     function handleClickOutside(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        !containerRef.current?.contains(target) &&
+        !dropdownRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     }
@@ -130,26 +153,26 @@ export default function NotificationBell({ variant = "dark" }: NotificationBellP
     }
   }
 
-  return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        title="Notifications"
-        aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className={`relative w-9 h-9 grid place-items-center rounded-lg transition-colors shadow-[0_4px_12px_rgba(20,58,52,0.12)] ${buttonClass}`}
-      >
-        <BellIcon className="w-[18px] h-[18px]" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full bg-[#f75d89] text-white text-[10px] font-extrabold border border-white">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        )}
-      </button>
+  function handleToggleDropdown() {
+    const nextOpen = !open;
+    setOpen(nextOpen);
 
-      {open && (
-        <div className="absolute right-0 top-[calc(100%+10px)] z-50 w-[min(360px,calc(100vw-2rem))] rounded-lg border border-[rgba(19,35,30,0.1)] bg-white shadow-[0_22px_52px_rgba(50,36,22,0.18)] overflow-hidden text-[#17211d]">
+    if (nextOpen) {
+      void loadNotifications();
+    }
+  }
+
+  const dropdown = open
+    ? createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-[9999] rounded-lg border border-[rgba(19,35,30,0.1)] bg-white shadow-[0_22px_52px_rgba(50,36,22,0.18)] overflow-hidden text-[#17211d]"
+          style={{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            width: dropdownPosition.width,
+          }}
+        >
           <div className="px-4 py-3 border-b border-[rgba(22,35,31,0.09)] flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-[#52625d] m-0">Notifications</p>
@@ -205,6 +228,9 @@ export default function NotificationBell({ variant = "dark" }: NotificationBellP
                         >
                           {notification.title}
                         </span>
+                        <span className="block text-sm text-[#586760] mt-1 leading-snug">
+                          {notification.message}
+                        </span>
                         <span className="block text-xs text-[#8a9690] mt-1">
                           {notification.ticketReference} - {formatNotificationTime(notification.createdAt)}
                         </span>
@@ -215,8 +241,30 @@ export default function NotificationBell({ variant = "dark" }: NotificationBellP
               </ul>
             )}
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      )
+    : null;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        title="Notifications"
+        aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
+        aria-expanded={open}
+        onClick={handleToggleDropdown}
+        className={`relative w-9 h-9 grid place-items-center rounded-lg transition-colors shadow-[0_4px_12px_rgba(20,58,52,0.12)] ${buttonClass}`}
+      >
+        <BellIcon className="w-[18px] h-[18px]" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full bg-[#f75d89] text-white text-[10px] font-extrabold border border-white">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {dropdown}
     </div>
   );
 }

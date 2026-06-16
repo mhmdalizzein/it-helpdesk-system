@@ -48,7 +48,7 @@ const sidebarNavItems = [
   { label: 'Dashboard', href: '/dashboard', active: true, roles: ['Admin', 'Agent', 'User'] as Role[] },
   { label: 'Tickets', href: '/tickets', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
   { label: 'Create Ticket', href: '/tickets/create', active: false, roles: ['User'] as Role[] },
-  { label: 'Notifications', href: '#', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
+  { label: 'Notifications', href: '/notifications', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
   { label: 'Reports', href: '#', active: false, roles: ['Admin'] as Role[] },
   { label: 'Admin Settings', href: '#', active: false, roles: ['Admin'] as Role[] },
   { label: 'User Profile', href: '#', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
@@ -164,6 +164,7 @@ function Dashboard() {
   const [stats, setStats] = useState<TicketStats>(emptyTicketStats)
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [dashboardLoading, setDashboardLoading] = useState(true)
   const [dashboardError, setDashboardError] = useState('')
 
   useEffect(() => {
@@ -176,6 +177,7 @@ function Dashboard() {
 
     async function loadDashboard() {
       try {
+        setDashboardLoading(true)
         setDashboardError('')
         const [ticketStats, ticketRows, notificationRows] = await Promise.all([
           getTicketStats(),
@@ -191,6 +193,10 @@ function Dashboard() {
       } catch {
         if (!cancelled) {
           setDashboardError('Failed to load dashboard analytics.')
+        }
+      } finally {
+        if (!cancelled) {
+          setDashboardLoading(false)
         }
       }
     }
@@ -398,6 +404,12 @@ function Dashboard() {
               {dashboardError && (
                 <div className="mb-4 px-4 py-3 rounded-lg bg-[#fdeef2] text-[#b83d5e] border border-[#f5ccd8] text-sm font-medium">
                   {dashboardError}
+                </div>
+              )}
+
+              {dashboardLoading && !dashboardError && (
+                <div className="mb-4 px-4 py-3 rounded-lg bg-[rgba(255,255,255,0.86)] text-[#586760] border border-[rgba(19,35,30,0.1)] text-sm font-medium">
+                  Loading dashboard analytics...
                 </div>
               )}
 
