@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser, logoutUser } from "../services/authService";
 import { createTicket, getCategories, getPriorities, type LookupItem } from "../services/ticketService";
+import NotificationBell from "../components/NotificationBell";
 
 function SparkIcon({ className = "" }: { className?: string }) {
   return (
@@ -87,13 +88,16 @@ export default function TicketCreate() {
               <p className="text-[rgba(247,251,247,0.7)] text-xs m-0">Create Ticket</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => { logoutUser(); navigate("/"); }}
-            className="px-3 py-1.5 rounded-md text-xs font-bold bg-white/10 text-white hover:bg-white/15 transition-colors"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+            <button
+              type="button"
+              onClick={() => { logoutUser(); navigate("/"); }}
+              className="px-3 py-1.5 rounded-md text-xs font-bold bg-white/10 text-white hover:bg-white/15 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-auto p-6">

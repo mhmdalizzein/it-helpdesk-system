@@ -87,6 +87,45 @@ export type AgentUser = {
   email: string;
 };
 
+export type StatBucket = {
+  id: number;
+  label: string;
+  count: number;
+};
+
+export type TicketStats = {
+  totalTickets: number;
+  openTickets: number;
+  inProgressTickets: number;
+  resolvedTickets: number;
+  byStatus: StatBucket[];
+  byPriority: StatBucket[];
+  byCategory: StatBucket[];
+};
+
+export type NotificationItem = {
+  notificationId: number;
+  userId: number;
+  ticketId: number;
+  ticketReference: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  readAt: string | null;
+};
+
+export type TicketAttachment = {
+  ticketAttachmentId: number;
+  ticketId: number;
+  fileName: string;
+  fileType: string | null;
+  fileSize: number;
+  uploadedAt: string;
+  uploadedBy: string;
+  uploadedByUserId: number;
+};
+
 async function apiGet<T>(url: string): Promise<T> {
   const response = await fetch(url, { headers: authHeaders("GET") });
   if (!response.ok) {
@@ -127,6 +166,17 @@ async function apiPut<T>(url: string, body: unknown): Promise<T> {
   return result as T;
 }
 
+async function apiPostForm<T>(url: string, body: FormData): Promise<T> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: authHeaders("GET"),
+    body,
+  });
+  const result = await parseResponseSafe(response);
+  if (!response.ok) throw new Error(typeof result === "object" && result !== null ? (result as Record<string, unknown>).message as string || "Request failed" : `Request failed: ${response.status}`);
+  return result as T;
+}
+
 async function apiDelete(url: string): Promise<void> {
   const response = await fetch(url, { method: "DELETE", headers: authHeaders("DELETE") });
   const result = await parseResponseSafe(response);
@@ -135,6 +185,10 @@ async function apiDelete(url: string): Promise<void> {
 
 export async function getTickets(): Promise<Ticket[]> {
   return apiGet(`${API_BASE_URL}/Tickets`);
+}
+
+export async function getTicketStats(): Promise<TicketStats> {
+  return apiGet(`${API_BASE_URL}/Tickets/stats`);
 }
 
 export async function getTicket(id: number): Promise<Ticket> {
@@ -189,4 +243,48 @@ export async function getActivityLogs(ticketId: number): Promise<ActivityLog[]> 
 
 export async function getAgents(): Promise<AgentUser[]> {
   return apiGet(`${API_BASE_URL}/Users/agents`);
+}
+
+export async function getNotifications(unreadOnly = false): Promise<NotificationItem[]> {
+  const query = unreadOnly ? "?unreadOnly=true" : "";
+  return apiGet(`${API_BASE_URL}/Notifications${query}`);
+}
+
+export async function markNotificationAsRead(notificationId: number): Promise<NotificationItem> {
+  return apiPut(`${API_BASE_URL}/Notifications/${notificationId}/read`, {});
+}
+
+export async function markAllNotificationsAsRead(): Promise<{ markedRead: number }> {
+  return apiPut(`${API_BASE_URL}/Notifications/read-all`, {});
+}
+
+export async function getAttachments(ticketId: number): Promise<TicketAttachment[]> {
+  return apiGet(`${API_BASE_URL}/Tickets/${ticketId}/TicketAttachments`);
+}
+
+export async function uploadAttachment(ticketId: number, file: File): Promise<TicketAttachment> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiPostForm(`${API_BASE_URL}/Tickets/${ticketId}/TicketAttachments`, formData);
+}
+
+export async function downloadAttachment(ticketId: number, attachmentId: number, fileName: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/Tickets/${ticketId}/TicketAttachments/${attachmentId}/download`, {
+    headers: authHeaders("GET"),
+  });
+
+  if (!response.ok) {
+    const result = await parseResponseSafe(response);
+    throw new Error(typeof result === "object" && result !== null ? (result as Record<string, unknown>).message as string || "Download failed" : `Download failed: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }

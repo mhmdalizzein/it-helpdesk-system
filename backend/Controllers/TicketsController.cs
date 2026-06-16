@@ -1,6 +1,7 @@
 using HelpDesk.API.Data;
 using HelpDesk.API.DTOs;
 using HelpDesk.API.Models;
+using HelpDesk.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,10 +15,12 @@ namespace HelpDesk.API.Controllers;
 public class TicketsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly NotificationService _notificationService;
 
-    public TicketsController(ApplicationDbContext context)
+    public TicketsController(ApplicationDbContext context, NotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     private int GetCurrentUserId()
@@ -50,6 +53,22 @@ public class TicketsController : ControllerBase
         return $"HD-{nextNumber}";
     }
 
+    private IQueryable<Ticket> GetVisibleTicketsQuery(int userId, string role)
+    {
+        var query = _context.Tickets.AsQueryable();
+
+        if (role == "User")
+        {
+            query = query.Where(t => t.CreatedByUserId == userId);
+        }
+        else if (role == "Agent")
+        {
+            query = query.Where(t => t.AssignedToUserId == userId || t.CreatedByUserId == userId);
+        }
+
+        return query;
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetTickets()
     {
@@ -58,16 +77,7 @@ public class TicketsController : ControllerBase
             var userId = GetCurrentUserId();
             var role = GetCurrentUserRole();
 
-            var query = _context.Tickets.AsQueryable();
-
-            if (role == "User")
-            {
-                query = query.Where(t => t.CreatedByUserId == userId);
-            }
-            else if (role == "Agent")
-            {
-                query = query.Where(t => t.AssignedToUserId == userId || t.CreatedByUserId == userId);
-            }
+            var query = GetVisibleTicketsQuery(userId, role);
 
             var tickets = await query
                 .OrderByDescending(t => t.CreatedAt)
@@ -100,6 +110,67 @@ public class TicketsController : ControllerBase
         {
             return StatusCode(500, new { message = "An error occurred while fetching tickets.", error = ex.Message });
         }
+    }
+
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetTicketStats()
+    {
+        var userId = GetCurrentUserId();
+        var role = GetCurrentUserRole();
+        var query = GetVisibleTicketsQuery(userId, role);
+
+        var totalTickets = await query.CountAsync();
+
+        var byStatus = await query
+            .GroupBy(ticket => new { ticket.StatusId, ticket.Status.StatusName })
+            .OrderBy(group => group.Key.StatusId)
+            .Select(group => new
+            {
+                Id = group.Key.StatusId,
+                Label = group.Key.StatusName,
+                Count = group.Count()
+            })
+            .ToListAsync();
+
+        var byPriority = await query
+            .GroupBy(ticket => new { ticket.PriorityId, ticket.Priority.PriorityName })
+            .OrderBy(group => group.Key.PriorityId)
+            .Select(group => new
+            {
+                Id = group.Key.PriorityId,
+                Label = group.Key.PriorityName,
+                Count = group.Count()
+            })
+            .ToListAsync();
+
+        var byCategory = await query
+            .GroupBy(ticket => new { ticket.CategoryId, ticket.Category.CategoryName })
+            .OrderBy(group => group.Key.CategoryName)
+            .Select(group => new
+            {
+                Id = group.Key.CategoryId,
+                Label = group.Key.CategoryName,
+                Count = group.Count()
+            })
+            .ToListAsync();
+
+        int CountStatus(string statusName)
+        {
+            return byStatus
+                .Where(status => string.Equals(status.Label, statusName, StringComparison.OrdinalIgnoreCase))
+                .Sum(status => status.Count);
+        }
+
+        return Ok(new
+        {
+            TotalTickets = totalTickets,
+            OpenTickets = CountStatus("Open"),
+            InProgressTickets = CountStatus("In Progress"),
+            ResolvedTickets = CountStatus("Resolved"),
+            ByStatus = byStatus,
+            ByPriority = byPriority,
+            ByCategory = byCategory
+        });
     }
 
     [HttpGet("{id}")]
@@ -253,7 +324,6 @@ public class TicketsController : ControllerBase
     {
         var userId = GetCurrentUserId();
         var role = GetCurrentUserRole();
-        var currentUserName = User.FindFirstValue(ClaimTypes.Name) ?? "Unknown";
 
         var ticket = await _context.Tickets
             .Include(t => t.Status)
@@ -288,50 +358,58 @@ public class TicketsController : ControllerBase
             return BadRequest(new { message = "Invalid status." });
         }
 
-        if (dto.AssignedToUserId.HasValue)
+        var previousStatusId = ticket.StatusId;
+        var previousAssignedToUserId = ticket.AssignedToUserId;
+        var assignmentChanged = dto.AssignedToUserId != previousAssignedToUserId;
+        User? assignedUser = null;
+
+        if (assignmentChanged && role != "Admin")
         {
-            var userExists = await _context.Users.AnyAsync(u => u.UserId == dto.AssignedToUserId.Value);
-            if (!userExists)
+            return Forbid();
+        }
+
+        if (assignmentChanged && dto.AssignedToUserId.HasValue)
+        {
+            assignedUser = await _context.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u => u.UserId == dto.AssignedToUserId.Value && u.IsActive);
+
+            if (assignedUser == null || assignedUser.Role.RoleName != "Agent")
             {
-                return BadRequest(new { message = "Invalid assigned user." });
+                return BadRequest(new { message = "Tickets can only be assigned to active support agents." });
             }
         }
 
-        var previousStatusId = ticket.StatusId;
-        var previousAssignedToUserId = ticket.AssignedToUserId;
+        string? oldStatusName = null;
+        string? newStatusName = null;
 
         if (dto.StatusId != previousStatusId)
         {
             var newStatus = await _context.Statuses.FindAsync(dto.StatusId);
             var oldStatus = await _context.Statuses.FindAsync(previousStatusId);
-            var oldName = oldStatus?.StatusName ?? "Unknown";
-            var newName = newStatus?.StatusName ?? "Unknown";
+            oldStatusName = oldStatus?.StatusName ?? "Unknown";
+            newStatusName = newStatus?.StatusName ?? "Unknown";
 
             _context.ActivityLogs.Add(new ActivityLog
             {
                 UserId = userId,
                 TicketId = id,
                 Action = "Status Updated",
-                Description = $"Status changed from {oldName} to {newName}",
+                Description = $"Status changed from {oldStatusName} to {newStatusName}",
                 CreatedAt = DateTime.UtcNow
             });
         }
 
-        if (dto.AssignedToUserId != previousAssignedToUserId)
+        if (assignmentChanged)
         {
-            string assignedName = "Unassigned";
-            if (dto.AssignedToUserId.HasValue)
-            {
-                var assignedUser = await _context.Users.FindAsync(dto.AssignedToUserId.Value);
-                assignedName = assignedUser?.FullName ?? "Unknown";
-            }
+            var assignedName = assignedUser?.FullName ?? "Unassigned";
 
             _context.ActivityLogs.Add(new ActivityLog
             {
                 UserId = userId,
                 TicketId = id,
                 Action = "Assigned",
-                Description = $"Assigned to {assignedName}",
+                Description = dto.AssignedToUserId.HasValue ? $"Assigned to {assignedName}" : "Ticket unassigned",
                 CreatedAt = DateTime.UtcNow
             });
         }
@@ -369,6 +447,16 @@ public class TicketsController : ControllerBase
                 Description = "Ticket details updated",
                 CreatedAt = DateTime.UtcNow
             });
+        }
+
+        if (dto.AssignedToUserId != previousAssignedToUserId && dto.AssignedToUserId.HasValue)
+        {
+            _notificationService.QueueTicketAssigned(ticket, userId);
+        }
+
+        if (oldStatusName != null && newStatusName != null)
+        {
+            _notificationService.QueueStatusChanged(ticket, userId, oldStatusName, newStatusName);
         }
 
         await _context.SaveChangesAsync();

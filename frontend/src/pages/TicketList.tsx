@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser, logoutUser } from "../services/authService";
 import { getTickets, type Ticket } from "../services/ticketService";
+import NotificationBell from "../components/NotificationBell";
 
 const statusStyles: Record<string, string> = {
   Open: "bg-[#e6faf5] text-[#0b8e79] border-[#b8ecdc]",
@@ -84,6 +85,7 @@ export default function TicketList() {
           </div>
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <button
               type="button"
               onClick={() => navigate("/dashboard")}

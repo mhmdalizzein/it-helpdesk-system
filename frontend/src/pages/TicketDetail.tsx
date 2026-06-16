@@ -13,12 +13,17 @@ import {
   deleteComment,
   getActivityLogs,
   getAgents,
+  getAttachments,
+  uploadAttachment,
+  downloadAttachment,
   type Ticket,
   type LookupItem,
   type Comment,
   type ActivityLog,
   type AgentUser,
+  type TicketAttachment,
 } from "../services/ticketService";
+import NotificationBell from "../components/NotificationBell";
 
 const statusStyles: Record<string, string> = {
   Open: "bg-[#e6faf5] text-[#0b8e79] border-[#b8ecdc]",
@@ -41,7 +46,24 @@ const actionColors: Record<string, string> = {
   Assigned: "bg-[#e8b84a]",
   Updated: "bg-[#8a9690]",
   "Comment Added": "bg-[#19b99a]",
+  "Attachment Uploaded": "bg-[#8a9690]",
 };
+
+const allowedAttachmentExtensions = [".png", ".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
+const maxAttachmentSize = 10 * 1024 * 1024;
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function hasAllowedAttachmentExtension(fileName: string) {
+  const dotIndex = fileName.lastIndexOf(".");
+  if (dotIndex === -1) return false;
+  const extension = fileName.slice(dotIndex).toLowerCase();
+  return allowedAttachmentExtensions.includes(extension);
+}
 
 function SparkIcon({ className = "" }: { className?: string }) {
   return (
@@ -55,6 +77,7 @@ export default function TicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const currentUser = getCurrentUser();
+  const canAssign = currentUser?.role === "Admin";
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,6 +103,11 @@ export default function TicketDetail() {
   const [newComment, setNewComment] = useState("");
   const [commentInternal, setCommentInternal] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [attachments, setAttachments] = useState<TicketAttachment[]>([]);
+  const [selectedAttachment, setSelectedAttachment] = useState<File | null>(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [attachmentError, setAttachmentError] = useState("");
+  const [attachmentInputKey, setAttachmentInputKey] = useState(0);
 
   function populateForm(t: Ticket) {
     setTitle(t.title);
@@ -98,14 +126,15 @@ export default function TicketDetail() {
     (async () => {
       try {
         setLoading(true);
-        const [ticketData, cats, sts, pris, agts, cmts, logs] = await Promise.all([
+        const [ticketData, cats, sts, pris, agts, cmts, logs, files] = await Promise.all([
           getTicket(Number(id)),
           getCategories(),
           getStatuses(),
           getPriorities(),
-          getAgents().catch(() => [] as AgentUser[]),
+          canAssign ? getAgents().catch(() => [] as AgentUser[]) : Promise.resolve([] as AgentUser[]),
           getComments(Number(id)).catch(() => [] as Comment[]),
           getActivityLogs(Number(id)).catch(() => [] as ActivityLog[]),
+          getAttachments(Number(id)).catch(() => [] as TicketAttachment[]),
         ]);
         setTicket(ticketData);
         setCategories(cats);
@@ -114,6 +143,7 @@ export default function TicketDetail() {
         setAgents(agts);
         setComments(cmts);
         setActivityLogs(logs);
+        setAttachments(files);
         populateForm(ticketData);
       } catch {
         setError("Failed to load ticket.");
@@ -147,7 +177,7 @@ export default function TicketDetail() {
         categoryId: parseInt(categoryId),
         priorityId: parseInt(priorityId),
         statusId: parseInt(statusId),
-        assignedToUserId: assignedToUserId ? parseInt(assignedToUserId) : null,
+        assignedToUserId: canAssign ? (assignedToUserId ? parseInt(assignedToUserId) : null) : ticket?.assignedToUserId ?? null,
       });
       setTicket(updated);
       setEditing(false);
@@ -219,6 +249,49 @@ export default function TicketDetail() {
     }
   }
 
+  async function handleUploadAttachment(e: React.FormEvent) {
+    e.preventDefault();
+    setAttachmentError("");
+
+    if (!selectedAttachment) {
+      setAttachmentError("Please choose a file to upload.");
+      return;
+    }
+
+    if (!hasAllowedAttachmentExtension(selectedAttachment.name)) {
+      setAttachmentError("Only png, jpg, jpeg, pdf, doc, and docx files are allowed.");
+      return;
+    }
+
+    if (selectedAttachment.size > maxAttachmentSize) {
+      setAttachmentError("File size must be 10 MB or less.");
+      return;
+    }
+
+    try {
+      setUploadingAttachment(true);
+      const uploaded = await uploadAttachment(Number(id), selectedAttachment);
+      setAttachments((items) => [uploaded, ...items]);
+      setSelectedAttachment(null);
+      setAttachmentInputKey((key) => key + 1);
+      const logs = await getActivityLogs(Number(id)).catch(() => [] as ActivityLog[]);
+      setActivityLogs(logs);
+    } catch (err: unknown) {
+      setAttachmentError(err instanceof Error ? err.message : "Failed to upload attachment.");
+    } finally {
+      setUploadingAttachment(false);
+    }
+  }
+
+  async function handleDownloadAttachment(attachment: TicketAttachment) {
+    try {
+      setAttachmentError("");
+      await downloadAttachment(Number(id), attachment.ticketAttachmentId, attachment.fileName);
+    } catch (err: unknown) {
+      setAttachmentError(err instanceof Error ? err.message : "Failed to download attachment.");
+    }
+  }
+
   if (!currentUser) return null;
 
   const isOwner = ticket?.createdByUserId === currentUser.userId;
@@ -243,6 +316,7 @@ export default function TicketDetail() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <button
               type="button"
               onClick={() => navigate("/dashboard")}
@@ -374,6 +448,65 @@ export default function TicketDetail() {
 
                 <div className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] shadow-[0_4px_16px_rgba(50,36,22,0.06)] mb-8">
                   <div className="px-5 py-4 border-b border-[rgba(22,35,31,0.09)]">
+                    <p className="text-sm font-bold text-[#52625d] m-0">Attachments</p>
+                    <p className="text-[#8a9690] text-xs mt-1 mb-0">Screenshots and documents for this ticket</p>
+                  </div>
+
+                  <div className="px-5 py-4 border-b border-[rgba(22,35,31,0.09)] bg-[#faf9f5]">
+                    <form onSubmit={handleUploadAttachment} className="flex flex-col sm:flex-row sm:items-center gap-3">
+                      <input
+                        key={attachmentInputKey}
+                        type="file"
+                        accept=".png,.jpg,.jpeg,.pdf,.doc,.docx"
+                        onChange={(e) => {
+                          setAttachmentError("");
+                          setSelectedAttachment(e.target.files?.[0] || null);
+                        }}
+                        className="flex-1 min-w-0 px-4 py-2.5 rounded-lg border border-[#dde0dc] bg-white text-sm text-[#17211d] focus:outline-none focus:ring-2 focus:ring-[#19b99a] focus:border-transparent transition-colors"
+                      />
+                      <button
+                        type="submit"
+                        disabled={uploadingAttachment || !selectedAttachment}
+                        className="px-5 py-2.5 rounded-lg text-sm font-bold bg-[#143a34] text-white hover:bg-[#0d2d28] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {uploadingAttachment ? "Uploading..." : "Upload"}
+                      </button>
+                    </form>
+                    <p className="text-[#8a9690] text-xs mt-2 mb-0">Allowed: png, jpg, jpeg, pdf, doc, docx. Max 10 MB.</p>
+                    {attachmentError && (
+                      <div className="mt-3 px-4 py-3 rounded-lg bg-[#fdeef2] text-[#b83d5e] border border-[#f5ccd8] text-sm font-medium">
+                        {attachmentError}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="divide-y divide-[rgba(22,35,31,0.06)]">
+                    {attachments.length === 0 ? (
+                      <p className="px-5 py-6 text-center text-[#8a9690] text-sm m-0">No attachments yet.</p>
+                    ) : (
+                      attachments.map((attachment) => (
+                        <div key={attachment.ticketAttachmentId} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-[#26322e] truncate m-0">{attachment.fileName}</p>
+                            <p className="text-[#8a9690] text-xs mt-1 mb-0">
+                              {formatFileSize(attachment.fileSize)} - uploaded by {attachment.uploadedBy} on {new Date(attachment.uploadedAt).toLocaleString()}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadAttachment(attachment)}
+                            className="shrink-0 px-4 py-2 rounded-lg text-sm font-bold bg-[#faf9f5] text-[#26322e] border border-[#ddded8] hover:bg-white transition-colors"
+                          >
+                            Download
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] shadow-[0_4px_16px_rgba(50,36,22,0.06)] mb-8">
+                  <div className="px-5 py-4 border-b border-[rgba(22,35,31,0.09)]">
                     <p className="text-sm font-bold text-[#52625d] m-0">Comments</p>
                     <p className="text-[#8a9690] text-xs mt-1 mb-0">Discussion and notes on this ticket</p>
                   </div>
@@ -488,7 +621,7 @@ export default function TicketDetail() {
                             <span className="font-medium text-[#26322e]">
                               {log.action === "Status Updated" || log.action === "Created" || log.action === "Assigned"
                                 ? log.description || log.action
-                                : `${log.action} — ${log.description || ""}`}
+                                : `${log.action} - ${log.description || ""}`}
                             </span>
                             <span className="text-xs text-[#8a9690]">{new Date(log.createdAt).toLocaleString()}</span>
                             <span className="text-xs text-[#586760] font-medium">by {log.user}</span>
@@ -569,7 +702,7 @@ export default function TicketDetail() {
                       </select>
                       {errors.statusId && <p className="mt-1 text-xs text-[#b83d5e] font-medium">{errors.statusId}</p>}
                     </div>
-                    {isStaff && (
+                    {canAssign && (
                       <div>
                         <label htmlFor="assignedTo" className="block text-sm font-bold text-[#26322e] mb-1.5">Assign To</label>
                         <select

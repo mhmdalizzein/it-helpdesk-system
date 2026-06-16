@@ -1,6 +1,7 @@
 using HelpDesk.API.Data;
 using HelpDesk.API.DTOs;
 using HelpDesk.API.Models;
+using HelpDesk.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,10 +15,12 @@ namespace HelpDesk.API.Controllers;
 public class TicketCommentsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly NotificationService _notificationService;
 
-    public TicketCommentsController(ApplicationDbContext context)
+    public TicketCommentsController(ApplicationDbContext context, NotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     private int GetCurrentUserId()
@@ -85,12 +88,14 @@ public class TicketCommentsController : ControllerBase
             return Forbid();
         }
 
+        var isInternal = role != "User" && dto.IsInternal;
+
         var comment = new TicketComment
         {
             TicketId = ticketId,
             UserId = userId,
             CommentText = dto.CommentText,
-            IsInternal = dto.IsInternal,
+            IsInternal = isInternal,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -101,9 +106,11 @@ public class TicketCommentsController : ControllerBase
             UserId = userId,
             TicketId = ticketId,
             Action = "Comment Added",
-            Description = dto.IsInternal ? "Internal note added" : "Comment added",
+            Description = isInternal ? "Internal note added" : "Comment added",
             CreatedAt = DateTime.UtcNow
         });
+
+        _notificationService.QueueCommentAdded(ticket, userId, user.FullName, isInternal);
 
         await _context.SaveChangesAsync();
 
