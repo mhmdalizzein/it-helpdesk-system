@@ -13,6 +13,7 @@ import {
 } from '../services/adminService'
 import { getAIStatus, type AIStatusResponse } from '../services/aiService'
 import { getCurrentUser } from '../services/authService'
+import { getSystemCounts, type SystemCounts } from '../services/userService'
 
 type EditableLookup = {
   id: number
@@ -135,17 +136,19 @@ export default function AdminSettings() {
   const [priorities, setPriorities] = useState<EditableLookup[]>([])
   const [statuses, setStatuses] = useState<EditableLookup[]>([])
   const [aiStatus, setAIStatus] = useState<AIStatusResponse | null>(null)
+  const [systemCounts, setSystemCounts] = useState<SystemCounts | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   async function loadSettings() {
-    const [categoryRows, priorityRows, statusRows, status] = await Promise.all([
-      getAllCategories(), getPrioritySettings(), getStatusSettings(), getAIStatus(),
+    const [categoryRows, priorityRows, statusRows, status, counts] = await Promise.all([
+      getAllCategories(), getPrioritySettings(), getStatusSettings(), getAIStatus(), getSystemCounts(),
     ])
     setCategories(categoryRows.map((item) => ({ id: item.categoryId, name: item.categoryName, description: item.description || '', sortOrder: 0, isActive: item.isActive })))
     setPriorities(priorityRows.map(toEditableLookup))
     setStatuses(statusRows.map(toEditableLookup))
     setAIStatus(status)
+    setSystemCounts(counts)
   }
 
   useEffect(() => {
@@ -192,6 +195,23 @@ export default function AdminSettings() {
 
       {!loading && !error && (
         <div className="space-y-6">
+          {systemCounts && (
+            <section className="grid grid-cols-2 lg:grid-cols-5 gap-4" aria-label="System counts">
+              {[
+                ['Users', systemCounts.totalUsers],
+                ['Active Users', systemCounts.activeUsers],
+                ['Tickets', systemCounts.totalTickets],
+                ['Unassigned', systemCounts.unassignedTickets],
+                ['Categories', systemCounts.categories],
+              ].map(([label, value]) => (
+                <article key={label} className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-4 shadow-[0_22px_52px_rgba(50,36,22,0.08)]">
+                  <p className="text-xs font-bold text-[#8a9690] uppercase tracking-wide m-0">{label}</p>
+                  <p className="text-2xl font-bold text-[#26322e] mt-2 mb-0">{value}</p>
+                </article>
+              ))}
+            </section>
+          )}
+
           {aiStatus && (
             <section className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_22px_52px_rgba(50,36,22,0.08)]">
               <p className="text-sm font-bold text-[#52625d] m-0">AI Status</p>

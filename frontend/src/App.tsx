@@ -9,6 +9,7 @@ import Reports from './pages/Reports'
 import AdminSettings from './pages/AdminSettings'
 import ManageUsers from './pages/ManageUsers'
 import UserProfile from './pages/UserProfile'
+import AIAssistant from './pages/AIAssistant'
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
       <Route path="/admin/settings" element={<AdminSettings />} />
       <Route path="/admin/users" element={<ManageUsers />} />
       <Route path="/profile" element={<UserProfile />} />
+      <Route path="/ai-assistant" element={<AIAssistant />} />
     </Routes>
   )
 }

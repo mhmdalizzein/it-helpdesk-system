@@ -1,46 +1,47 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { getCurrentUser, logoutUser } from '../services/authService'
 import NotificationBell from '../components/NotificationBell'
 import {
   getNotifications,
+  getRecentActivity,
   getTicketStats,
   getTickets,
+  clearAllTickets,
   markNotificationAsRead,
   type NotificationItem,
+  type DashboardActivity,
   type Ticket,
   type TicketStats,
 } from '../services/ticketService'
 import '../App.css'
+import { getSystemCounts, type SystemCounts } from '../services/userService'
+import { generateSampleTickets } from '../services/aiService'
 
 type Role = 'Admin' | 'Agent' | 'User'
+type AdminTicketAction = 'generate' | 'clear'
 
-const emptyTicketStats: TicketStats = {
-  totalTickets: 0,
-  openTickets: 0,
-  inProgressTickets: 0,
-  resolvedTickets: 0,
-  byStatus: [],
-  byPriority: [],
-  byCategory: [],
-}
-
-const quickActionsByRole: Record<Role, { label: string; variant: 'primary' | 'secondary' }[]> = {
+const quickActionsByRole: Record<Role, { label: string; route: string; variant: 'primary' | 'secondary' }[]> = {
   Admin: [
-    { label: 'View All Tickets', variant: 'primary' },
-    { label: 'Assign Ticket', variant: 'secondary' },
-    { label: 'Manage Users', variant: 'secondary' },
-    { label: 'Generate Report', variant: 'secondary' },
+    { label: 'Manage Users', route: '/admin/users', variant: 'secondary' },
+    { label: 'Reports', route: '/reports', variant: 'secondary' },
+    { label: 'Admin Settings', route: '/admin/settings', variant: 'secondary' },
+    { label: 'View Tickets', route: '/tickets', variant: 'primary' },
+    { label: 'AI Assistant', route: '/ai-assistant', variant: 'secondary' },
   ],
   Agent: [
-    { label: 'View Assigned Tickets', variant: 'primary' },
-    { label: 'Update Ticket Status', variant: 'secondary' },
-    { label: 'Add Internal Note', variant: 'secondary' },
+    { label: 'My Assigned Tickets', route: '/tickets?scope=assigned', variant: 'primary' },
+    { label: 'Open Tickets', route: '/tickets?status=open', variant: 'secondary' },
+    { label: 'Notifications', route: '/notifications', variant: 'secondary' },
+    { label: 'Profile', route: '/profile', variant: 'secondary' },
+    { label: 'AI Assistant', route: '/ai-assistant', variant: 'secondary' },
   ],
   User: [
-    { label: 'Create Ticket', variant: 'primary' },
-    { label: 'View My Tickets', variant: 'secondary' },
-    { label: 'Check Notifications', variant: 'secondary' },
+    { label: 'Create Ticket', route: '/tickets/create', variant: 'primary' },
+    { label: 'My Tickets', route: '/tickets', variant: 'secondary' },
+    { label: 'Notifications', route: '/notifications', variant: 'secondary' },
+    { label: 'Profile', route: '/profile', variant: 'secondary' },
+    { label: 'AI Assistant', route: '/ai-assistant', variant: 'secondary' },
   ],
 }
 
@@ -52,6 +53,7 @@ const sidebarNavItems = [
   { label: 'Reports', href: '/reports', active: false, roles: ['Admin'] as Role[] },
   { label: 'Admin Settings', href: '/admin/settings', active: false, roles: ['Admin'] as Role[] },
   { label: 'User Profile', href: '/profile', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
+  { label: 'AI Assistant', href: '/ai-assistant', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
 ]
 
 const accentSwatchClass: Record<string, string> = {
@@ -144,31 +146,50 @@ function getRoleIntro(role: Role) {
   return 'Create support tickets, follow your requests, and view important updates.'
 }
 
-function getActionRoute(label: string): string | null {
-  const map: Record<string, string> = {
-    'View All Tickets': '/tickets',
-    'View Assigned Tickets': '/tickets',
-    'View My Tickets': '/tickets',
-    'Create Ticket': '/tickets/create',
-    'Assign Ticket': '/tickets',
-    'Update Ticket Status': '/tickets',
-    'Add Internal Note': '/tickets',
-    'Generate Report': '/reports',
-    'Manage Users': '/admin/users',
-  }
-  return map[label] || null
-}
-
 function Dashboard() {
   const navigate = useNavigate()
   const location = useLocation()
   const [currentUser] = useState(() => getCurrentUser())
-  const [stats, setStats] = useState<TicketStats>(emptyTicketStats)
+  const [stats, setStats] = useState<TicketStats | null>(null)
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [activity, setActivity] = useState<DashboardActivity[]>([])
   const [dashboardLoading, setDashboardLoading] = useState(true)
   const [dashboardError, setDashboardError] = useState('')
+  const [systemCounts, setSystemCounts] = useState<SystemCounts | null>(null)
+  const [sampleCount, setSampleCount] = useState(3)
+  const [adminTicketAction, setAdminTicketAction] = useState<AdminTicketAction | null>(null)
+  const [clearConfirmation, setClearConfirmation] = useState('')
+  const [adminActionLoading, setAdminActionLoading] = useState(false)
+  const [adminActionSuccess, setAdminActionSuccess] = useState('')
+  const [adminActionError, setAdminActionError] = useState('')
   const unauthorizedMessage = (location.state as { unauthorizedMessage?: string } | null)?.unauthorizedMessage
+
+  const loadDashboard = useCallback(async () => {
+    if (!currentUser) return
+
+    try {
+      setDashboardLoading(true)
+      setDashboardError('')
+      const [ticketStats, ticketRows, notificationRows, activityRows, counts] = await Promise.all([
+        getTicketStats(),
+        getTickets(),
+        getNotifications(),
+        getRecentActivity(),
+        currentUser.role === 'Admin' ? getSystemCounts() : Promise.resolve(null),
+      ])
+
+      setStats(ticketStats)
+      setTickets(ticketRows)
+      setNotifications(notificationRows)
+      setActivity(activityRows)
+      setSystemCounts(counts)
+    } catch {
+      setDashboardError('Failed to load dashboard analytics.')
+    } finally {
+      setDashboardLoading(false)
+    }
+  }, [currentUser])
 
   useEffect(() => {
     if (!currentUser) {
@@ -176,47 +197,24 @@ function Dashboard() {
       return
     }
 
-    let cancelled = false
+    const loadTimer = window.setTimeout(() => {
+      void loadDashboard()
+    }, 0)
 
-    async function loadDashboard() {
-      try {
-        setDashboardLoading(true)
-        setDashboardError('')
-        const [ticketStats, ticketRows, notificationRows] = await Promise.all([
-          getTicketStats(),
-          getTickets().catch(() => [] as Ticket[]),
-          getNotifications().catch(() => [] as NotificationItem[]),
-        ])
-
-        if (!cancelled) {
-          setStats(ticketStats)
-          setTickets(ticketRows)
-          setNotifications(notificationRows)
-        }
-      } catch {
-        if (!cancelled) {
-          setDashboardError('Failed to load dashboard analytics.')
-        }
-      } finally {
-        if (!cancelled) {
-          setDashboardLoading(false)
-        }
-      }
-    }
-
-    loadDashboard()
-
-    return () => {
-      cancelled = true
-    }
-  }, [currentUser, navigate])
+    return () => window.clearTimeout(loadTimer)
+  }, [currentUser, loadDashboard, navigate])
 
   if (!currentUser) {
     return null
   }
 
   const userRole = currentUser.role as Role
-  const dashboardStats = [
+  const assignedTickets = userRole === 'Agent'
+    ? tickets.filter((ticket) => ticket.assignedToUserId === currentUser.userId)
+    : tickets
+  const activeAssignedTickets = assignedTickets.filter((ticket) => !['Resolved', 'Closed'].includes(ticket.status))
+  const highPriorityTickets = activeAssignedTickets.filter((ticket) => ['High', 'Critical'].includes(ticket.priority))
+  const dashboardStats = !stats ? [] : userRole === 'Admin' ? [
     {
       key: 'total',
       label: 'Total Tickets',
@@ -245,25 +243,45 @@ function Dashboard() {
       helper: 'Completed support requests',
       accent: 'rose',
     },
+    {
+      key: 'unassigned',
+      label: 'Unassigned Tickets',
+      value: systemCounts?.unassignedTickets ?? tickets.filter((ticket) => !ticket.assignedToUserId).length,
+      helper: 'Waiting for an agent',
+      accent: 'amber',
+    },
+  ] : userRole === 'Agent' ? [
+    { key: 'assigned', label: 'Assigned Tickets', value: assignedTickets.length, helper: 'Tickets assigned to you', accent: 'mint' },
+    { key: 'open', label: 'Open Assigned', value: assignedTickets.filter((ticket) => ticket.status === 'Open').length, helper: 'Awaiting your action', accent: 'amber' },
+    { key: 'in-progress', label: 'In Progress', value: assignedTickets.filter((ticket) => ticket.status === 'In Progress').length, helper: 'Currently being handled', accent: 'teal' },
+    { key: 'high', label: 'High Priority', value: highPriorityTickets.length, helper: 'High or critical active tickets', accent: 'rose' },
+  ] : [
+    { key: 'total', label: 'My Tickets', value: stats.totalTickets, helper: 'Requests you created', accent: 'mint' },
+    { key: 'open', label: 'Open Tickets', value: stats.openTickets, helper: 'Awaiting support action', accent: 'amber' },
+    { key: 'in-progress', label: 'In Progress', value: stats.inProgressTickets, helper: 'Currently being handled', accent: 'teal' },
+    { key: 'resolved', label: 'Resolved Tickets', value: stats.resolvedTickets, helper: 'Completed requests', accent: 'rose' },
   ]
-  const recentTickets = tickets.slice(0, 5)
-  const recentActivity = recentTickets.map((ticket) => ({
-    id: `ticket-${ticket.ticketId}`,
-    type: ticket.assignedTo ? 'assigned' : 'status',
-    actor: ticket.assignedTo || ticket.createdBy,
-    detail: `${ticket.ticketReference} is ${ticket.status}`,
-    time: formatRelativeTime(ticket.updatedAt || ticket.createdAt),
+  const recentTickets = (userRole === 'Agent' ? assignedTickets : tickets).slice(0, 5)
+  const recentActivity = activity.map((item) => ({
+    id: item.activityLogId,
+    type: item.action.toLowerCase().includes('assign') ? 'assigned'
+      : item.action.toLowerCase().includes('comment') ? 'comment'
+        : item.action.toLowerCase().includes('attach') ? 'attachment'
+          : item.action.toLowerCase().includes('status') ? 'status' : 'category',
+    actor: item.user,
+    detail: `${item.ticketReference}: ${item.description || item.action}`,
+    time: formatRelativeTime(item.createdAt),
   }))
-  const statusOverview = stats.byStatus.map((item) => ({
+  const statusOverview = (stats?.byStatus ?? []).map((item) => ({
     status: item.label,
     count: item.count,
-    total: Math.max(stats.totalTickets, 1),
+    total: Math.max(stats?.totalTickets ?? 0, 1),
   }))
-  const categoryBreakdown = stats.byCategory.map((item) => ({
+  const categoryBreakdown = (stats?.byCategory ?? []).map((item) => ({
     category: item.label,
     count: item.count,
   }))
-  const priorityBreakdown = stats.byPriority.map((item) => ({
+  const priorityBreakdown = (stats?.byPriority ?? []).map((item) => ({
     priority: item.label,
     count: item.count,
   }))
@@ -287,6 +305,49 @@ function Dashboard() {
       setDashboardError('Failed to update notification.')
     } finally {
       navigate(`/tickets/${notification.ticketId}`)
+    }
+  }
+
+  function openAdminTicketAction(action: AdminTicketAction) {
+    if (userRole !== 'Admin') return
+    setAdminTicketAction(action)
+    setClearConfirmation('')
+    setAdminActionError('')
+    setAdminActionSuccess('')
+  }
+
+  async function confirmAdminTicketAction() {
+    if (userRole !== 'Admin' || !adminTicketAction) return
+
+    const normalizedConfirmation = clearConfirmation.trim().toUpperCase()
+    if (adminTicketAction === 'clear' && normalizedConfirmation !== 'DELETE' && normalizedConfirmation !== 'CLEAR') {
+      setAdminActionError('Type DELETE or CLEAR to confirm clearing all tickets.')
+      return
+    }
+
+    try {
+      setAdminActionLoading(true)
+      setAdminActionError('')
+      setAdminActionSuccess('')
+
+      if (adminTicketAction === 'generate') {
+        const response = await generateSampleTickets(sampleCount)
+        setAdminActionSuccess(`${response.createdCount} sample ticket${response.createdCount === 1 ? '' : 's'} created in ${response.mode} mode.`)
+      } else {
+        const response = await clearAllTickets(normalizedConfirmation as 'DELETE' | 'CLEAR')
+        const cleanupWarning = response.attachmentFileCleanupFailures > 0
+          ? ` ${response.attachmentFileCleanupFailures} attachment file${response.attachmentFileCleanupFailures === 1 ? '' : 's'} could not be removed from storage.`
+          : ''
+        setAdminActionSuccess(response.message + cleanupWarning)
+      }
+
+      setAdminTicketAction(null)
+      setClearConfirmation('')
+      await loadDashboard()
+    } catch (err: unknown) {
+      setAdminActionError(err instanceof Error ? err.message : 'The ticket operation could not be completed.')
+    } finally {
+      setAdminActionLoading(false)
     }
   }
 
@@ -422,7 +483,68 @@ function Dashboard() {
                 </div>
               )}
 
-              <section aria-label="Dashboard statistics" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+              {adminTicketAction && userRole === 'Admin' && (
+                <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(10,24,20,0.58)] px-4" role="presentation">
+                  <section
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="admin-ticket-action-title"
+                    className="w-full max-w-lg rounded-lg border border-[rgba(19,35,30,0.12)] bg-white p-6 shadow-[0_24px_70px_rgba(8,24,19,0.3)]"
+                  >
+                    <p className="text-[#a3493d] text-xs font-extrabold uppercase tracking-wide m-0">Admin Confirmation</p>
+                    <h2 id="admin-ticket-action-title" className="text-2xl font-[850] text-[#17211d] mt-2 mb-0">
+                      {adminTicketAction === 'generate' ? 'Generate Sample Tickets' : 'Clear All Tickets'}
+                    </h2>
+                    {adminTicketAction === 'generate' ? (
+                      <p className="text-sm text-[#586760] mt-3 mb-0">
+                        Create {sampleCount} clearly labeled sample ticket{sampleCount === 1 ? '' : 's'} in the real database? They will appear according to normal role permissions.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-sm font-bold text-[#b83d5e] mt-3 mb-0">
+                          This permanently deletes every ticket and all related comments, activity, attachments, and notifications. Users and lookup settings are not deleted.
+                        </p>
+                        <label className="block text-sm font-bold text-[#52625d] mt-4">
+                          Type DELETE or CLEAR to confirm
+                          <input
+                            autoFocus
+                            value={clearConfirmation}
+                            onChange={(event) => setClearConfirmation(event.target.value.toUpperCase())}
+                            className="block w-full mt-2 px-4 py-2.5 rounded-lg border border-[#dde0dc] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#f75d89]"
+                          />
+                        </label>
+                      </>
+                    )}
+                    {adminActionError && <p className="text-sm font-medium text-[#b83d5e] mt-3 mb-0" role="alert">{adminActionError}</p>}
+                    <div className="flex justify-end gap-3 mt-6">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (adminActionLoading) return
+                          setAdminTicketAction(null)
+                          setClearConfirmation('')
+                          setAdminActionError('')
+                        }}
+                        disabled={adminActionLoading}
+                        className="px-4 py-2 rounded-lg text-sm font-bold bg-white text-[#26322e] border border-[#ddded8] disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void confirmAdminTicketAction()}
+                        disabled={adminActionLoading || (adminTicketAction === 'clear' && !['DELETE', 'CLEAR'].includes(clearConfirmation.trim().toUpperCase()))}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed ${adminTicketAction === 'clear' ? 'bg-[#b83d5e] hover:bg-[#9f304f]' : 'bg-[#143a34] hover:bg-[#0d2d28]'}`}
+                      >
+                        {adminActionLoading ? 'Working...' : adminTicketAction === 'generate' ? 'Confirm Generation' : 'Permanently Clear Tickets'}
+                      </button>
+                    </div>
+                  </section>
+                </div>
+              )}
+
+              {!dashboardLoading && !dashboardError && stats && <>
+              <section aria-label="Dashboard statistics" className={`grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 ${userRole === 'Admin' ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
                 {dashboardStats.map((stat) => (
                   <article
                     key={stat.key}
@@ -443,8 +565,8 @@ function Dashboard() {
                 >
                   <div className="px-5 py-4 border-b border-[rgba(22,35,31,0.09)] flex items-center justify-between">
                     <div>
-                      <p className="text-[#52625d] text-sm font-bold m-0">Recent Tickets</p>
-                      <p className="text-[#8a9690] text-xs mt-1 mb-0">Latest support requests across the organization</p>
+                      <p className="text-[#52625d] text-sm font-bold m-0">{userRole === 'Agent' ? 'Recent Assigned Tickets' : userRole === 'User' ? 'My Recent Tickets' : 'Recent Tickets'}</p>
+                      <p className="text-[#8a9690] text-xs mt-1 mb-0">{userRole === 'Admin' ? 'Latest support requests across the organization' : userRole === 'Agent' ? 'Latest tickets currently assigned to you' : 'Your latest submitted support requests'}</p>
                     </div>
                   </div>
                   <div className="overflow-x-auto">
@@ -465,7 +587,7 @@ function Dashboard() {
                         {recentTickets.length === 0 ? (
                           <tr>
                             <td colSpan={8} className="px-4 py-6 text-center text-[#8a9690]">
-                              No tickets found.
+                              {userRole === 'Agent' ? 'No assigned tickets' : 'No recent tickets'}
                             </td>
                           </tr>
                         ) : (
@@ -510,12 +632,11 @@ function Dashboard() {
                     <p className="text-[#8a9690] text-xs mt-1 mb-4">Common workflow shortcuts for {currentUser.role}</p>
                     <div className="grid grid-cols-1 gap-2.5">
                       {quickActions.map((action) => {
-                        const actionRoute = getActionRoute(action.label)
                         return (
                           <button
                             key={action.label}
                             type="button"
-                            onClick={() => actionRoute && navigate(actionRoute)}
+                            onClick={() => navigate(action.route)}
                             className={`
                               w-full px-4 py-3 rounded-lg text-sm font-bold transition-all duration-150
                               ${action.variant === 'primary'
@@ -530,6 +651,63 @@ function Dashboard() {
                       })}
                     </div>
                   </section>
+
+                  {userRole === 'Admin' && (
+                    <section aria-label="Admin ticket tools" className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_22px_52px_rgba(50,36,22,0.08)]">
+                      <p className="text-[#52625d] text-sm font-bold m-0">Admin Ticket Tools</p>
+                      <p className="text-[#8a9690] text-xs mt-1 mb-4">Manual database ticket operations</p>
+                      <label className="block text-sm font-semibold text-[#586760]">
+                        Sample ticket count
+                        <input
+                          type="number"
+                          min={1}
+                          max={10}
+                          value={sampleCount}
+                          onChange={(event) => setSampleCount(Math.min(10, Math.max(1, Number(event.target.value) || 1)))}
+                          className="block w-full mt-2 px-3 py-2 rounded-lg border border-[#dde0dc] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#19b99a]"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => openAdminTicketAction('generate')}
+                        disabled={adminActionLoading}
+                        className="w-full mt-3 px-4 py-2.5 rounded-lg text-sm font-bold bg-[#143a34] text-white hover:bg-[#0d2d28] disabled:opacity-50"
+                      >
+                        Generate Sample Tickets
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openAdminTicketAction('clear')}
+                        disabled={adminActionLoading}
+                        className="w-full mt-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-white text-[#b83d5e] border border-[#f5ccd8] hover:bg-[#fdeef2] disabled:opacity-50"
+                      >
+                        Clear All Tickets
+                      </button>
+                      {adminActionSuccess && <p className="text-sm font-medium text-[#0b8e79] mt-3 mb-0" role="status">{adminActionSuccess}</p>}
+                      {adminActionError && !adminTicketAction && <p className="text-sm font-medium text-[#b83d5e] mt-3 mb-0" role="alert">{adminActionError}</p>}
+                    </section>
+                  )}
+
+                  {userRole === 'Agent' && (
+                    <section aria-label="High priority assigned tickets" className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_22px_52px_rgba(50,36,22,0.08)]">
+                      <p className="text-[#52625d] text-sm font-bold m-0">High Priority Tickets</p>
+                      <p className="text-[#8a9690] text-xs mt-1 mb-4">Active high and critical assignments</p>
+                      {highPriorityTickets.length === 0 ? (
+                        <p className="text-center text-[#8a9690] text-sm py-3 m-0">No high-priority assignments.</p>
+                      ) : (
+                        <ul className="space-y-2 m-0 p-0 list-none">
+                          {highPriorityTickets.slice(0, 4).map((ticket) => (
+                            <li key={ticket.ticketId}>
+                              <button type="button" onClick={() => navigate(`/tickets/${ticket.ticketId}`)} className="w-full text-left p-3 rounded-lg bg-[#faf9f5] border border-[#ddded8] hover:border-[#19b99a]">
+                                <span className="block text-xs font-bold text-[#143a34]">{ticket.ticketReference}</span>
+                                <span className="block text-sm font-medium text-[#26322e] mt-1 truncate">{ticket.title}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
+                  )}
 
                   <section
                     aria-label="Notifications"
@@ -683,7 +861,7 @@ function Dashboard() {
                 className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_22px_52px_rgba(50,36,22,0.08)]"
               >
                 <p className="text-[#52625d] text-sm font-bold m-0">Recent Activity</p>
-                <p className="text-[#8a9690] text-xs mt-1 mb-5">Latest actions from tickets, users, and system events</p>
+                <p className="text-[#8a9690] text-xs mt-1 mb-5">Latest recorded actions on tickets you can view</p>
                 {recentActivity.length === 0 ? (
                   <p className="text-center text-[#8a9690] text-sm py-4 m-0">No recent activity yet.</p>
                 ) : (
@@ -703,6 +881,23 @@ function Dashboard() {
                   </ul>
                 )}
               </section>
+
+              {userRole === 'Admin' && systemCounts && (
+                <section aria-label="User statistics" className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                  {[
+                    ['Total Users', systemCounts.totalUsers],
+                    ['Active Users', systemCounts.activeUsers],
+                    ['Support Agents', systemCounts.agentUsers],
+                    ['Employees', systemCounts.employeeUsers],
+                  ].map(([label, value]) => (
+                    <article key={label} className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-4 shadow-[0_22px_52px_rgba(50,36,22,0.08)]">
+                      <p className="text-xs font-bold text-[#8a9690] uppercase tracking-wide m-0">{label}</p>
+                      <p className="text-2xl font-bold text-[#26322e] mt-2 mb-0">{value}</p>
+                    </article>
+                  ))}
+                </section>
+              )}
+              </>}
             </div>
           </div>
         </main>

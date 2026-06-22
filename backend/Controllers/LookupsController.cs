@@ -199,6 +199,11 @@ public class LookupsController : ControllerBase
     public async Task<IActionResult> CreateStatus(OrderedLookupManagementDto request)
     {
         var name = request.Name.Trim();
+        if (string.Equals(name, "xw", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "xw is not a valid ticket status name." });
+        }
+
         if (await _context.Statuses.AnyAsync(item => item.StatusName.ToLower() == name.ToLower()))
         {
             return Conflict(new { message = "A status with this name already exists." });
@@ -232,6 +237,11 @@ public class LookupsController : ControllerBase
         }
 
         var name = request.Name.Trim();
+        if (string.Equals(name, "xw", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "xw is not a valid ticket status name." });
+        }
+
         if (await _context.Statuses.AnyAsync(item =>
             item.StatusId != id && item.StatusName.ToLower() == name.ToLower()))
         {

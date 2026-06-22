@@ -3,7 +3,10 @@ import { getToken } from "./authService";
 
 export type AITextResponse = {
   result: string;
+  mode: AIMode;
 };
+
+export type AIMode = "real-ai" | "demo-fallback";
 
 export type AIRecommendationRequest = {
   title: string;
@@ -14,14 +17,30 @@ export type AIRecommendationResponse = {
   recommendedId: number;
   recommendedName: string;
   reason: string;
+  mode: AIMode;
 };
 
 export type AIStatusResponse = {
   provider: string;
-  mode: "Demo" | "Live";
+  mode: AIMode;
   isConfigured: boolean;
   model: string | null;
   message: string;
+};
+
+export type GeneratedSampleTicket = {
+  ticketId: number;
+  ticketReference: string;
+  title: string;
+  category: string;
+  priority: string;
+  status: string;
+};
+
+export type GenerateSampleTicketsResponse = {
+  mode: AIMode;
+  createdCount: number;
+  tickets: GeneratedSampleTicket[];
 };
 
 async function postAI<T>(path: string, body: unknown = {}): Promise<T> {
@@ -76,6 +95,17 @@ export function recommendCategory(
 
 export function askHelpdeskAssistant(message: string): Promise<AITextResponse> {
   return postAI("chat", { message });
+}
+
+export function askHelpdeskAssistantWithTicket(
+  ticketId: number,
+  message: string,
+): Promise<AITextResponse> {
+  return postAI(`chat-with-ticket/${ticketId}`, { message });
+}
+
+export function generateSampleTickets(count: number): Promise<GenerateSampleTicketsResponse> {
+  return postAI("generate-sample-tickets", { count });
 }
 
 export async function getAIStatus(): Promise<AIStatusResponse> {

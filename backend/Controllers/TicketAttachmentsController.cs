@@ -61,7 +61,13 @@ public class TicketAttachmentsController : ControllerBase
         var role = GetCurrentUserRole();
         var userId = GetCurrentUserId();
 
-        return role != "User" || ticket.CreatedByUserId == userId;
+        return role switch
+        {
+            "Admin" => true,
+            "Agent" => ticket.AssignedToUserId == userId || ticket.CreatedByUserId == userId,
+            "User" => ticket.CreatedByUserId == userId,
+            _ => false
+        };
     }
 
     private async Task<Ticket?> FindAccessibleTicket(int ticketId)

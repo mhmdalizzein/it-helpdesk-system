@@ -16,6 +16,7 @@ const sidebarNavItems = [
   { label: 'Reports', href: '/reports' },
   { label: 'Admin Settings', href: '/admin/settings' },
   { label: 'User Profile', href: '/profile' },
+  { label: 'AI Assistant', href: '/ai-assistant' },
 ]
 
 const accentSwatchClass: Record<string, string> = {
@@ -139,12 +140,12 @@ export default function Reports() {
     return null
   }
 
-  const summaryCards = [
-    { label: 'Total Tickets', value: report?.totalTickets ?? 0, helper: 'All helpdesk requests', accent: 'mint' },
-    { label: 'Open Tickets', value: report?.openTickets ?? 0, helper: 'Awaiting action', accent: 'amber' },
-    { label: 'In Progress', value: report?.inProgressTickets ?? 0, helper: 'Currently being handled', accent: 'teal' },
-    { label: 'Resolved / Closed', value: report?.resolvedClosedTickets ?? 0, helper: 'Completed requests', accent: 'rose' },
-  ]
+  const summaryCards = report ? [
+    { label: 'Total Tickets', value: report.totalTickets, helper: 'All helpdesk requests', accent: 'mint' },
+    { label: 'Open Tickets', value: report.openTickets, helper: 'Awaiting action', accent: 'amber' },
+    { label: 'In Progress', value: report.inProgressTickets, helper: 'Currently being handled', accent: 'teal' },
+    { label: 'Resolved / Closed', value: report.resolvedClosedTickets, helper: 'Completed requests', accent: 'rose' },
+  ] : []
 
   const agentRows: StatBucket[] = (report?.ticketsAssignedPerAgent ?? []).map((agent) => ({
     id: agent.agentId,
@@ -270,7 +271,13 @@ export default function Reports() {
                 </div>
               )}
 
-              <section aria-label="Report summary" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+              {!loading && !error && report?.totalTickets === 0 && (
+                <section className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] px-5 py-10 text-center text-sm text-[#8a9690] shadow-[0_22px_52px_rgba(50,36,22,0.08)]">
+                  No tickets yet
+                </section>
+              )}
+
+              {!loading && !error && report && report.totalTickets > 0 && <section aria-label="Report summary" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
                 {summaryCards.map((card) => (
                   <article key={card.label} className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_22px_52px_rgba(50,36,22,0.08)]">
                     <span className={`block w-9 h-2 rounded-sm ${accentSwatchClass[card.accent]}`} />
@@ -279,9 +286,9 @@ export default function Reports() {
                     <p className="text-[#8a9690] text-xs mt-2 mb-0 leading-relaxed">{card.helper}</p>
                   </article>
                 ))}
-              </section>
+              </section>}
 
-              {!loading && report && (
+              {!loading && !error && report && report.totalTickets > 0 && (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   <BreakdownTable title="Tickets by Category" description="Ticket volume across helpdesk categories" labelHeading="Category" rows={report.ticketsByCategory} />
                   <BreakdownTable title="Tickets by Priority" description="Ticket volume by priority level" labelHeading="Priority" rows={report.ticketsByPriority} />

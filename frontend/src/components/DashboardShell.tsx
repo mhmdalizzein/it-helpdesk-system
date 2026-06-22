@@ -12,6 +12,7 @@ const navItems = [
   { label: 'Reports', href: '/reports', roles: ['Admin'] as Role[] },
   { label: 'Admin Settings', href: '/admin/settings', roles: ['Admin'] as Role[] },
   { label: 'User Profile', href: '/profile', roles: ['Admin', 'Agent', 'User'] as Role[] },
+  { label: 'AI Assistant', href: '/ai-assistant', roles: ['Admin', 'Agent', 'User'] as Role[] },
 ]
 
 function SparkIcon({ className = '' }: { className?: string }) {

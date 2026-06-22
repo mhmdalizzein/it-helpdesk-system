@@ -34,10 +34,33 @@ public class TicketCommentsController : ControllerBase
         return User.FindFirstValue(ClaimTypes.Role) ?? "";
     }
 
+    private static bool CanAccessTicket(Ticket ticket, int userId, string role)
+    {
+        return role switch
+        {
+            "Admin" => true,
+            "Agent" => ticket.AssignedToUserId == userId || ticket.CreatedByUserId == userId,
+            "User" => ticket.CreatedByUserId == userId,
+            _ => false
+        };
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetComments(int ticketId)
     {
+        var userId = GetCurrentUserId();
         var role = GetCurrentUserRole();
+
+        var ticket = await _context.Tickets.FindAsync(ticketId);
+        if (ticket == null)
+        {
+            return NotFound(new { message = "Ticket not found." });
+        }
+
+        if (!CanAccessTicket(ticket, userId, role))
+        {
+            return Forbid();
+        }
 
         var query = _context.TicketComments
             .Include(c => c.User)
@@ -83,7 +106,7 @@ public class TicketCommentsController : ControllerBase
             return NotFound(new { message = "User not found." });
         }
 
-        if (role == "User" && ticket.CreatedByUserId != userId)
+        if (!CanAccessTicket(ticket, userId, role))
         {
             return Forbid();
         }
@@ -133,11 +156,17 @@ public class TicketCommentsController : ControllerBase
         var role = GetCurrentUserRole();
 
         var comment = await _context.TicketComments
+            .Include(c => c.Ticket)
             .FirstOrDefaultAsync(c => c.TicketCommentId == commentId && c.TicketId == ticketId);
 
         if (comment == null)
         {
             return NotFound(new { message = "Comment not found." });
+        }
+
+        if (!CanAccessTicket(comment.Ticket, userId, role))
+        {
+            return Forbid();
         }
 
         if (role == "User" && comment.UserId != userId)

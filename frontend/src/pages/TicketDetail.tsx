@@ -340,6 +340,7 @@ export default function TicketDetail() {
   const isOwner = ticket?.createdByUserId === currentUser.userId;
   const isStaff = currentUser.role === "Admin" || currentUser.role === "Agent";
   const canEdit = isOwner || isStaff;
+  const canDelete = currentUser.role === "Admin" || isOwner;
 
   const timelineLogs = [...activityLogs].reverse();
 
@@ -421,14 +422,16 @@ export default function TicketDetail() {
                         Edit
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={handleDelete}
-                      disabled={deleting}
-                      className="px-4 py-2 rounded-lg text-sm font-bold bg-[#fdeef2] text-[#b83d5e] border border-[#f5ccd8] hover:bg-[#f5ccd8] transition-colors disabled:opacity-50"
-                    >
-                      {deleting ? "Deleting..." : "Delete"}
-                    </button>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        className="px-4 py-2 rounded-lg text-sm font-bold bg-[#fdeef2] text-[#b83d5e] border border-[#f5ccd8] hover:bg-[#f5ccd8] transition-colors disabled:opacity-50"
+                      >
+                        {deleting ? "Deleting..." : "Delete"}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -774,21 +777,23 @@ export default function TicketDetail() {
                       </select>
                       {errors.priorityId && <p className="mt-1 text-xs text-[#b83d5e] font-medium">{errors.priorityId}</p>}
                     </div>
-                    <div>
-                      <label htmlFor="status" className="block text-sm font-bold text-[#26322e] mb-1.5">Status</label>
-                      <select
-                        id="status"
-                        value={statusId}
-                        onChange={(e) => setStatusId(e.target.value)}
-                        className={`w-full px-4 py-2.5 rounded-lg border bg-white text-sm text-[#17211d] focus:outline-none focus:ring-2 focus:ring-[#19b99a] focus:border-transparent transition-colors ${errors.statusId ? "border-[#b83d5e]" : "border-[#dde0dc]"}`}
-                      >
-                        <option value="">Select status</option>
-                        {statuses.map((st) => (
-                          <option key={st.statusId} value={st.statusId}>{st.statusName}</option>
-                        ))}
-                      </select>
-                      {errors.statusId && <p className="mt-1 text-xs text-[#b83d5e] font-medium">{errors.statusId}</p>}
-                    </div>
+                    {isStaff && (
+                      <div>
+                        <label htmlFor="status" className="block text-sm font-bold text-[#26322e] mb-1.5">Status</label>
+                        <select
+                          id="status"
+                          value={statusId}
+                          onChange={(e) => setStatusId(e.target.value)}
+                          className={`w-full px-4 py-2.5 rounded-lg border bg-white text-sm text-[#17211d] focus:outline-none focus:ring-2 focus:ring-[#19b99a] focus:border-transparent transition-colors ${errors.statusId ? "border-[#b83d5e]" : "border-[#dde0dc]"}`}
+                        >
+                          <option value="">Select status</option>
+                          {statuses.map((st) => (
+                            <option key={st.statusId} value={st.statusId}>{st.statusName}</option>
+                          ))}
+                        </select>
+                        {errors.statusId && <p className="mt-1 text-xs text-[#b83d5e] font-medium">{errors.statusId}</p>}
+                      </div>
+                    )}
                     {canAssign && (
                       <div>
                         <label htmlFor="assignedTo" className="block text-sm font-bold text-[#26322e] mb-1.5">Assign To</label>

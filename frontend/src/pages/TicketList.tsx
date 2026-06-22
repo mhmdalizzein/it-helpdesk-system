@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { getCurrentUser, logoutUser } from "../services/authService";
 import { getTickets, type Ticket } from "../services/ticketService";
 import NotificationBell from "../components/NotificationBell";
@@ -36,6 +36,7 @@ function SparkIcon({ className = "" }: { className?: string }) {
 
 export default function TicketList() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // FIX: store currentUser once so it does not create a new object every render
   const [currentUser] = useState(() => getCurrentUser());
@@ -66,9 +67,8 @@ export default function TicketList() {
 
         const data = await getTickets();
         setTickets(data);
-      } catch (err) {
-        console.error("TicketList error:", err);
-        setError(String(err));
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to load tickets.");
       } finally {
         setLoading(false);
       }
@@ -78,6 +78,15 @@ export default function TicketList() {
   }, [currentUser, navigate]);
 
   if (!currentUser) return null;
+
+  const scope = searchParams.get("scope");
+  const requestedStatus = searchParams.get("status");
+  const visibleTickets = tickets.filter((ticket) => {
+    if (scope === "assigned" && ticket.assignedToUserId !== currentUser.userId) return false;
+    if (requestedStatus && ticket.status.toLowerCase() !== requestedStatus.toLowerCase()) return false;
+    return true;
+  });
+  const listTitle = scope === "assigned" ? "My Assigned Tickets" : requestedStatus ? "Open Tickets" : "Tickets";
 
   return (
     <div className="min-h-screen flex bg-[#f6f2ec] text-[#17211d]">
@@ -137,10 +146,10 @@ export default function TicketList() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h1 className="text-[clamp(24px,3vw,32px)] font-[850] text-[#17211d] m-0">
-                  Tickets
+                  {listTitle}
                 </h1>
                 <p className="text-[#6b716d] text-sm mt-1 m-0">
-                  Manage all support requests
+                  {scope === "assigned" ? "Tickets currently assigned to you" : requestedStatus ? "Visible tickets with open status" : "Manage all support requests"}
                 </p>
               </div>
 
@@ -163,9 +172,9 @@ export default function TicketList() {
               <div className="text-center py-12 text-[#8a9690] text-sm">
                 Loading tickets...
               </div>
-            ) : tickets.length === 0 ? (
+            ) : visibleTickets.length === 0 ? (
               <div className="text-center py-12 text-[#8a9690] text-sm">
-                No tickets found.
+                {scope === "assigned" ? "No assigned tickets" : "No tickets yet"}
               </div>
             ) : (
               <div className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] shadow-[0_22px_52px_rgba(50,36,22,0.08)] overflow-hidden">
@@ -194,7 +203,7 @@ export default function TicketList() {
                     </thead>
 
                     <tbody>
-                      {tickets.map((ticket) => (
+                      {visibleTickets.map((ticket) => (
                         <tr
                           key={ticket.ticketId}
                           onClick={() => navigate(`/tickets/${ticket.ticketId}`)}

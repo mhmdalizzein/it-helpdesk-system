@@ -8,13 +8,11 @@ type IconProps = {
   className?: string
 }
 
-const metrics = [
-  { accent: 'mint', value: '99.8%', label: 'Security check' },
-  { accent: 'cyan', value: '12', label: 'Devices synced' },
-  { accent: 'rose', value: '38', label: 'Open tasks' },
+const workspaceFeatures = [
+  { accent: 'mint', label: 'Role-aware ticket access' },
+  { accent: 'cyan', label: 'Live helpdesk updates' },
+  { accent: 'rose', label: 'Secure account notifications' },
 ]
-
-const bars = [42, 68, 50, 76, 62, 88, 72]
 
 function SparkIcon({ className }: IconProps) {
   return (
@@ -161,8 +159,8 @@ function Login() {
         <article className="status-card">
           <div className="status-header">
             <div>
-              <p className="eyebrow">Workspace health</p>
-              <h2>All systems clear</h2>
+              <p className="eyebrow">Workspace access</p>
+              <h2>Live data after sign-in</h2>
             </div>
             <div className="status-icon">
               <CheckIcon />
@@ -170,26 +168,21 @@ function Login() {
           </div>
 
           <div className="metric-list">
-            {metrics.map((metric) => (
-              <div className="metric" key={metric.label}>
-                <span className={`metric-swatch ${metric.accent}`} />
-                <strong>{metric.value}</strong>
-                <span>{metric.label}</span>
+            {workspaceFeatures.map((feature) => (
+              <div className="metric" key={feature.label}>
+                <span className={`metric-swatch ${feature.accent}`} />
+                <span>{feature.label}</span>
               </div>
             ))}
           </div>
         </article>
 
-        <article className="chart-card" aria-label="Open task trend">
+        <article className="chart-card" aria-label="Live workspace data notice">
           <div className="chart-heading">
-            <span>Today</span>
-            <strong>+24%</strong>
+            <span>Helpdesk workspace</span>
+            <strong>Live</strong>
           </div>
-          <div className="chart-bars" aria-hidden="true">
-            {bars.map((height, index) => (
-              <span key={index} style={{ height: `${height}%` }} />
-            ))}
-          </div>
+          <p className="brand-subtitle">Ticket counts, activity, and notifications are loaded from the system after authentication.</p>
         </article>
       </section>
 

@@ -16,11 +16,19 @@ public class TicketsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly NotificationService _notificationService;
+    private readonly IWebHostEnvironment _environment;
+    private readonly ILogger<TicketsController> _logger;
 
-    public TicketsController(ApplicationDbContext context, NotificationService notificationService)
+    public TicketsController(
+        ApplicationDbContext context,
+        NotificationService notificationService,
+        IWebHostEnvironment environment,
+        ILogger<TicketsController> logger)
     {
         _context = context;
         _notificationService = notificationService;
+        _environment = environment;
+        _logger = logger;
     }
 
     private int GetCurrentUserId()
@@ -65,8 +73,23 @@ public class TicketsController : ControllerBase
         {
             query = query.Where(t => t.AssignedToUserId == userId || t.CreatedByUserId == userId);
         }
+        else if (role != "Admin")
+        {
+            query = query.Where(_ => false);
+        }
 
         return query;
+    }
+
+    private static bool CanAccessTicket(Ticket ticket, int userId, string role)
+    {
+        return role switch
+        {
+            "Admin" => true,
+            "Agent" => ticket.AssignedToUserId == userId || ticket.CreatedByUserId == userId,
+            "User" => ticket.CreatedByUserId == userId,
+            _ => false
+        };
     }
 
     [HttpGet]
@@ -173,6 +196,43 @@ public class TicketsController : ControllerBase
         });
     }
 
+    [HttpGet("recent-activity")]
+    [ProducesResponseType(typeof(List<DashboardActivityDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<DashboardActivityDto>>> GetRecentActivity(
+        [FromQuery] int limit = 8)
+    {
+        var userId = GetCurrentUserId();
+        var role = GetCurrentUserRole();
+        var visibleTickets = GetVisibleTicketsQuery(userId, role).Select(ticket => ticket.TicketId);
+        var safeLimit = Math.Clamp(limit, 1, 20);
+
+        var query = _context.ActivityLogs
+            .AsNoTracking()
+            .Where(log => visibleTickets.Contains(log.TicketId));
+
+        if (role == "User")
+        {
+            query = query.Where(log => log.Description != "Internal note added");
+        }
+
+        var activity = await query
+            .OrderByDescending(log => log.CreatedAt)
+            .Take(safeLimit)
+            .Select(log => new DashboardActivityDto
+            {
+                ActivityLogId = log.ActivityLogId,
+                TicketId = log.TicketId,
+                TicketReference = log.Ticket.TicketReference,
+                Action = log.Action,
+                Description = log.Description,
+                CreatedAt = log.CreatedAt,
+                User = log.User.FullName
+            })
+            .ToListAsync();
+
+        return Ok(activity);
+    }
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetTicket(int id)
     {
@@ -192,7 +252,7 @@ public class TicketsController : ControllerBase
             return NotFound(new { message = "Ticket not found." });
         }
 
-        if (role == "User" && ticket.CreatedByUserId != userId)
+        if (!CanAccessTicket(ticket, userId, role))
         {
             return Forbid();
         }
@@ -223,15 +283,29 @@ public class TicketsController : ControllerBase
     [HttpGet("{id}/activitylogs")]
     public async Task<IActionResult> GetActivityLogs(int id)
     {
+        var userId = GetCurrentUserId();
+        var role = GetCurrentUserRole();
         var ticket = await _context.Tickets.FindAsync(id);
         if (ticket == null)
         {
             return NotFound(new { message = "Ticket not found." });
         }
 
-        var logs = await _context.ActivityLogs
+        if (!CanAccessTicket(ticket, userId, role))
+        {
+            return Forbid();
+        }
+
+        var logsQuery = _context.ActivityLogs
             .Include(l => l.User)
-            .Where(l => l.TicketId == id)
+            .Where(l => l.TicketId == id);
+
+        if (role == "User")
+        {
+            logsQuery = logsQuery.Where(log => log.Description != "Internal note added");
+        }
+
+        var logs = await logsQuery
             .OrderByDescending(l => l.CreatedAt)
             .Select(l => new
             {
@@ -266,6 +340,32 @@ public class TicketsController : ControllerBase
                 return BadRequest(new { message = "Invalid priority." });
             }
 
+            var defaultStatus = await _context.Statuses
+                .AsNoTracking()
+                .Where(status => status.StatusName.Trim().ToLower() != "xw")
+                .OrderBy(status => status.StatusName.Trim().ToLower() == "open"
+                    ? 0
+                    : status.StatusName.Trim().ToLower() == "new" ? 1 : 2)
+                .ThenBy(status => status.SortOrder)
+                .ThenBy(status => status.StatusId)
+                .FirstOrDefaultAsync();
+
+            if (defaultStatus == null)
+            {
+                return Conflict(new
+                {
+                    message = "No valid initial ticket status is configured. Add Open or New in Admin Settings."
+                });
+            }
+
+            var defaultStatusExists = await _context.Statuses
+                .AsNoTracking()
+                .AnyAsync(status => status.StatusId == defaultStatus.StatusId);
+            if (!defaultStatusExists)
+            {
+                return Conflict(new { message = "The default ticket status is no longer available. Please try again." });
+            }
+
             var reference = await GenerateTicketReference();
 
             var ticket = new Ticket
@@ -275,7 +375,7 @@ public class TicketsController : ControllerBase
                 Description = dto.Description,
                 CategoryId = dto.CategoryId,
                 PriorityId = dto.PriorityId,
-                StatusId = 1,
+                StatusId = defaultStatus.StatusId,
                 CreatedByUserId = userId,
                 CreatedAt = DateTime.UtcNow
             };
@@ -335,7 +435,7 @@ public class TicketsController : ControllerBase
             return NotFound(new { message = "Ticket not found." });
         }
 
-        if (role == "User" && ticket.CreatedByUserId != userId)
+        if (!CanAccessTicket(ticket, userId, role))
         {
             return Forbid();
         }
@@ -362,6 +462,11 @@ public class TicketsController : ControllerBase
         var previousAssignedToUserId = ticket.AssignedToUserId;
         var assignmentChanged = dto.AssignedToUserId != previousAssignedToUserId;
         User? assignedUser = null;
+
+        if (role == "User" && dto.StatusId != previousStatusId)
+        {
+            return Forbid();
+        }
 
         if (assignmentChanged && role != "Admin")
         {
@@ -490,7 +595,68 @@ public class TicketsController : ControllerBase
         });
     }
 
-    [HttpDelete("{id}")]
+    [HttpDelete("clear-all")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ClearAllTicketsResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ClearAllTicketsResponseDto>> ClearAllTickets(
+        [FromBody] ClearAllTicketsRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var attachmentPaths = await _context.TicketAttachments
+            .AsNoTracking()
+            .Select(attachment => attachment.FilePath)
+            .ToListAsync(cancellationToken);
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+        int deletedActivityLogs;
+        int deletedNotifications;
+        int deletedAttachments;
+        int deletedComments;
+        int deletedTickets;
+
+        try
+        {
+            deletedActivityLogs = await _context.ActivityLogs.ExecuteDeleteAsync(cancellationToken);
+            deletedNotifications = await _context.Notifications.ExecuteDeleteAsync(cancellationToken);
+            deletedAttachments = await _context.TicketAttachments.ExecuteDeleteAsync(cancellationToken);
+            deletedComments = await _context.TicketComments.ExecuteDeleteAsync(cancellationToken);
+            deletedTickets = await _context.Tickets.ExecuteDeleteAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            _logger.LogError(ex, "Failed to clear all helpdesk tickets.");
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                new { message = "Tickets could not be cleared safely. No ticket data was removed." });
+        }
+
+        var (deletedFiles, fileCleanupFailures) = DeleteAttachmentFiles(attachmentPaths);
+
+        return Ok(new ClearAllTicketsResponseDto
+        {
+            DeletedTickets = deletedTickets,
+            DeletedComments = deletedComments,
+            DeletedActivityLogs = deletedActivityLogs,
+            DeletedAttachments = deletedAttachments,
+            DeletedNotifications = deletedNotifications,
+            DeletedAttachmentFiles = deletedFiles,
+            AttachmentFileCleanupFailures = fileCleanupFailures,
+            Message = deletedTickets == 0
+                ? "There were no tickets to clear."
+                : $"Cleared {deletedTickets} ticket{(deletedTickets == 1 ? string.Empty : "s")} and related data."
+        });
+    }
+
+    [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteTicket(int id)
     {
         var userId = GetCurrentUserId();
@@ -508,7 +674,12 @@ public class TicketsController : ControllerBase
             return NotFound(new { message = "Ticket not found." });
         }
 
-        if (role == "User" && ticket.CreatedByUserId != userId)
+        if (!CanAccessTicket(ticket, userId, role))
+        {
+            return Forbid();
+        }
+
+        if (role == "Agent" && ticket.CreatedByUserId != userId)
         {
             return Forbid();
         }
@@ -522,5 +693,52 @@ public class TicketsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Ticket deleted successfully." });
+    }
+
+    private (int DeletedFiles, int Failures) DeleteAttachmentFiles(IEnumerable<string> relativePaths)
+    {
+        var uploadsRoot = Path.GetFullPath(Path.Combine(
+            _environment.ContentRootPath,
+            "Uploads",
+            "TicketAttachments"));
+        var normalizedRoot = Path.TrimEndingDirectorySeparator(uploadsRoot) + Path.DirectorySeparatorChar;
+        var deletedFiles = 0;
+        var failures = 0;
+
+        foreach (var relativePath in relativePaths.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var fullPath = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, relativePath));
+                if (!fullPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    failures++;
+                    _logger.LogWarning("Skipped attachment cleanup because its stored path was outside the attachment root.");
+                    continue;
+                }
+
+                if (System.IO.File.Exists(fullPath))
+                {
+                    System.IO.File.Delete(fullPath);
+                    deletedFiles++;
+                }
+
+                var parentDirectory = Path.GetDirectoryName(fullPath);
+                if (!string.IsNullOrWhiteSpace(parentDirectory)
+                    && parentDirectory.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase)
+                    && Directory.Exists(parentDirectory)
+                    && !Directory.EnumerateFileSystemEntries(parentDirectory).Any())
+                {
+                    Directory.Delete(parentDirectory);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                failures++;
+                _logger.LogWarning(ex, "An attachment file could not be removed after clearing tickets.");
+            }
+        }
+
+        return (deletedFiles, failures);
     }
 }

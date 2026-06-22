@@ -77,6 +77,16 @@ export type ActivityLog = {
   userId: number;
 };
 
+export type DashboardActivity = {
+  activityLogId: number;
+  ticketId: number;
+  ticketReference: string;
+  action: string;
+  description: string | null;
+  createdAt: string;
+  user: string;
+};
+
 export type AgentUser = {
   userId: number;
   fullName: string;
@@ -114,6 +124,17 @@ export type ReportSummary = {
   ticketsByPriority: StatBucket[];
   ticketsByStatus: StatBucket[];
   ticketsAssignedPerAgent: AgentReportBucket[];
+};
+
+export type ClearAllTicketsResponse = {
+  deletedTickets: number;
+  deletedComments: number;
+  deletedActivityLogs: number;
+  deletedAttachments: number;
+  deletedNotifications: number;
+  deletedAttachmentFiles: number;
+  attachmentFileCleanupFailures: number;
+  message: string;
 };
 
 export type NotificationItem = {
@@ -196,12 +217,27 @@ async function apiDelete(url: string): Promise<void> {
   if (!response.ok) throw new Error(typeof result === "object" && result !== null ? (result as Record<string, unknown>).message as string || "Request failed" : `Request failed: ${response.status}`);
 }
 
+async function apiDeleteWithBody<T>(url: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: authHeaders("DELETE"),
+    body: JSON.stringify(body),
+  });
+  const result = await parseResponseSafe(response);
+  if (!response.ok) throw new Error(typeof result === "object" && result !== null ? (result as Record<string, unknown>).message as string || "Request failed" : `Request failed: ${response.status}`);
+  return result as T;
+}
+
 export async function getTickets(): Promise<Ticket[]> {
   return apiGet(`${API_BASE_URL}/Tickets`);
 }
 
 export async function getTicketStats(): Promise<TicketStats> {
   return apiGet(`${API_BASE_URL}/Tickets/stats`);
+}
+
+export async function getRecentActivity(limit = 8): Promise<DashboardActivity[]> {
+  return apiGet(`${API_BASE_URL}/Tickets/recent-activity?limit=${limit}`);
 }
 
 export async function getReportSummary(): Promise<ReportSummary> {
@@ -222,6 +258,10 @@ export async function updateTicket(id: number, data: UpdateTicketRequest): Promi
 
 export async function deleteTicket(id: number): Promise<void> {
   return apiDelete(`${API_BASE_URL}/Tickets/${id}`);
+}
+
+export async function clearAllTickets(confirmation: "DELETE" | "CLEAR"): Promise<ClearAllTicketsResponse> {
+  return apiDeleteWithBody(`${API_BASE_URL}/Tickets/clear-all`, { confirmation });
 }
 
 export async function getCategories(): Promise<LookupItem[]> {

@@ -23,6 +23,8 @@ public class AIChatRequestDto
 public class AITextResponseDto
 {
     public string Result { get; set; } = string.Empty;
+
+    public string Mode { get; set; } = string.Empty;
 }
 
 public class AIRecommendationResponseDto
@@ -32,6 +34,8 @@ public class AIRecommendationResponseDto
     public string RecommendedName { get; set; } = string.Empty;
 
     public string Reason { get; set; } = string.Empty;
+
+    public string Mode { get; set; } = string.Empty;
 }
 
 public class AIStatusResponseDto
@@ -45,4 +49,34 @@ public class AIStatusResponseDto
     public string? Model { get; set; }
 
     public string Message { get; set; } = string.Empty;
+}
+
+public class GenerateSampleTicketsRequestDto
+{
+    [Range(1, 10)]
+    public int Count { get; set; }
+}
+
+public class GeneratedSampleTicketDto
+{
+    public int TicketId { get; set; }
+
+    public string TicketReference { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Category { get; set; } = string.Empty;
+
+    public string Priority { get; set; } = string.Empty;
+
+    public string Status { get; set; } = string.Empty;
+}
+
+public class GenerateSampleTicketsResponseDto
+{
+    public string Mode { get; set; } = string.Empty;
+
+    public int CreatedCount { get; set; }
+
+    public List<GeneratedSampleTicketDto> Tickets { get; set; } = [];
 }
