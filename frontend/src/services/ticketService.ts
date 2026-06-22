@@ -9,10 +9,6 @@ function authHeaders(method?: string): Record<string, string> {
   return headers;
 }
 
-function authHeadersWithBody(): Record<string, string> {
-  return authHeaders("POST");
-}
-
 export type Ticket = {
   ticketId: number;
   ticketReference: string;
@@ -103,6 +99,23 @@ export type TicketStats = {
   byCategory: StatBucket[];
 };
 
+export type AgentReportBucket = {
+  agentId: number;
+  agentName: string;
+  count: number;
+};
+
+export type ReportSummary = {
+  totalTickets: number;
+  openTickets: number;
+  inProgressTickets: number;
+  resolvedClosedTickets: number;
+  ticketsByCategory: StatBucket[];
+  ticketsByPriority: StatBucket[];
+  ticketsByStatus: StatBucket[];
+  ticketsAssignedPerAgent: AgentReportBucket[];
+};
+
 export type NotificationItem = {
   notificationId: number;
   userId: number;
@@ -189,6 +202,10 @@ export async function getTickets(): Promise<Ticket[]> {
 
 export async function getTicketStats(): Promise<TicketStats> {
   return apiGet(`${API_BASE_URL}/Tickets/stats`);
+}
+
+export async function getReportSummary(): Promise<ReportSummary> {
+  return apiGet(`${API_BASE_URL}/Reports/summary`);
 }
 
 export async function getTicket(id: number): Promise<Ticket> {

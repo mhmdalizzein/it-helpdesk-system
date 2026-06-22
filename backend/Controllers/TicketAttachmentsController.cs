@@ -1,4 +1,5 @@
 using HelpDesk.API.Data;
+using HelpDesk.API.DTOs;
 using HelpDesk.API.Models;
 using HelpDesk.API.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -106,8 +107,9 @@ public class TicketAttachmentsController : ControllerBase
 
     [HttpPost]
     [RequestSizeLimit(MaxFileSize)]
-    public async Task<IActionResult> UploadAttachment(int ticketId, [FromForm] IFormFile file)
+    public async Task<IActionResult> UploadAttachment(int ticketId, [FromForm] UploadAttachmentDto request)
     {
+        var file = request.File;
         var ticket = await FindAccessibleTicket(ticketId);
         if (ticket == null)
         {

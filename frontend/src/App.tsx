@@ -5,6 +5,10 @@ import TicketList from './pages/TicketList'
 import TicketCreate from './pages/TicketCreate'
 import TicketDetail from './pages/TicketDetail'
 import Notifications from './pages/Notifications'
+import Reports from './pages/Reports'
+import AdminSettings from './pages/AdminSettings'
+import ManageUsers from './pages/ManageUsers'
+import UserProfile from './pages/UserProfile'
 
 function App() {
   return (
@@ -16,6 +20,10 @@ function App() {
       <Route path="/tickets/create" element={<TicketCreate />} />
       <Route path="/tickets/:id" element={<TicketDetail />} />
       <Route path="/notifications" element={<Notifications />} />
+      <Route path="/reports" element={<Reports />} />
+      <Route path="/admin/settings" element={<AdminSettings />} />
+      <Route path="/admin/users" element={<ManageUsers />} />
+      <Route path="/profile" element={<UserProfile />} />
     </Routes>
   )
 }

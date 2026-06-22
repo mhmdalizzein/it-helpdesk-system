@@ -16,9 +16,9 @@ const sidebarNavItems = [
   { label: 'Tickets', href: '/tickets', roles: ['Admin', 'Agent', 'User'] as Role[] },
   { label: 'Create Ticket', href: '/tickets/create', roles: ['User'] as Role[] },
   { label: 'Notifications', href: '/notifications', roles: ['Admin', 'Agent', 'User'] as Role[] },
-  { label: 'Reports', href: '#', roles: ['Admin'] as Role[] },
-  { label: 'Admin Settings', href: '#', roles: ['Admin'] as Role[] },
-  { label: 'User Profile', href: '#', roles: ['Admin', 'Agent', 'User'] as Role[] },
+  { label: 'Reports', href: '/reports', roles: ['Admin'] as Role[] },
+  { label: 'Admin Settings', href: '/admin/settings', roles: ['Admin'] as Role[] },
+  { label: 'User Profile', href: '/profile', roles: ['Admin', 'Agent', 'User'] as Role[] },
 ]
 
 function SparkIcon({ className = '' }: { className?: string }) {
@@ -131,6 +131,15 @@ export default function Notifications() {
     }
   }
 
+  function handleBack() {
+    if (window.history.length > 1) {
+      navigate(-1)
+      return
+    }
+
+    navigate('/dashboard')
+  }
+
   return (
     <div className="dashboard-layout h-screen flex bg-[#f6f2ec] text-[#17211d]">
       <aside
@@ -220,6 +229,14 @@ export default function Notifications() {
             <div className="absolute bottom-0 left-0 w-[360px] h-[360px] rounded-full bg-[rgba(12,59,52,0.04)] blur-3xl pointer-events-none translate-y-1/3 -translate-x-1/4" />
 
             <div className="relative z-10 px-5 py-6 sm:px-6 lg:px-8 lg:py-8 max-w-[1440px]">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="mb-4 text-sm text-[#586760] hover:text-[#143a34] font-medium transition-colors"
+              >
+                &larr; Back
+              </button>
+
               <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
                 <div>
                   <p className="text-[#a3493d] text-xs font-extrabold uppercase tracking-wide m-0">Updates</p>

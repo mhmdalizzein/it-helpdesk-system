@@ -1,5 +1,6 @@
 using HelpDesk.API.Data;
 using HelpDesk.API.Services;
+using HelpDesk.API.Services.AI;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -16,6 +17,11 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddScoped<DataSeeder>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.Configure<AIOptions>(builder.Configuration.GetSection(AIOptions.SectionName));
+builder.Services.AddHttpClient<IAIService, OpenAIService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(45);
+});
 
 builder.Services.AddCors(options =>
 {

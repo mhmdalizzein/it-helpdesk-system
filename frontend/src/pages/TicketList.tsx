@@ -44,6 +44,15 @@ export default function TicketList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  function handleBack() {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/dashboard");
+  }
+
   useEffect(() => {
     if (!currentUser) {
       navigate("/");
@@ -117,6 +126,14 @@ export default function TicketList() {
 
         <main className="flex-1 overflow-auto p-6">
           <div className="max-w-[1440px] mx-auto">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="mb-4 text-sm text-[#586760] hover:text-[#143a34] font-medium transition-colors"
+            >
+              &larr; Back to Dashboard
+            </button>
+
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h1 className="text-[clamp(24px,3vw,32px)] font-[850] text-[#17211d] m-0">

@@ -24,6 +24,10 @@ import {
   type TicketAttachment,
 } from "../services/ticketService";
 import NotificationBell from "../components/NotificationBell";
+import {
+  generateTicketSummary,
+  getTroubleshootingSuggestions,
+} from "../services/aiService";
 
 const statusStyles: Record<string, string> = {
   Open: "bg-[#e6faf5] text-[#0b8e79] border-[#b8ecdc]",
@@ -76,7 +80,7 @@ function SparkIcon({ className = "" }: { className?: string }) {
 export default function TicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const currentUser = getCurrentUser();
+  const [currentUser] = useState(() => getCurrentUser());
   const canAssign = currentUser?.role === "Admin";
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
@@ -108,6 +112,10 @@ export default function TicketDetail() {
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [attachmentError, setAttachmentError] = useState("");
   const [attachmentInputKey, setAttachmentInputKey] = useState(0);
+  const [aiAction, setAIAction] = useState<"summary" | "troubleshooting" | null>(null);
+  const [aiSummary, setAISummary] = useState("");
+  const [aiTroubleshooting, setAITroubleshooting] = useState("");
+  const [aiError, setAIError] = useState("");
 
   function populateForm(t: Ticket) {
     setTitle(t.title);
@@ -151,7 +159,7 @@ export default function TicketDetail() {
         setLoading(false);
       }
     })();
-  }, [id]);
+  }, [canAssign, currentUser, id, navigate]);
 
   function validate(): boolean {
     const errs: Record<string, string> = {};
@@ -292,6 +300,41 @@ export default function TicketDetail() {
     }
   }
 
+  async function handleGenerateSummary() {
+    try {
+      setAIAction("summary");
+      setAIError("");
+      const response = await generateTicketSummary(Number(id));
+      setAISummary(response.result);
+    } catch (err: unknown) {
+      setAIError(err instanceof Error ? err.message : "Unable to generate a ticket summary.");
+    } finally {
+      setAIAction(null);
+    }
+  }
+
+  async function handleTroubleshootingSuggestions() {
+    try {
+      setAIAction("troubleshooting");
+      setAIError("");
+      const response = await getTroubleshootingSuggestions(Number(id));
+      setAITroubleshooting(response.result);
+    } catch (err: unknown) {
+      setAIError(err instanceof Error ? err.message : "Unable to get troubleshooting suggestions.");
+    } finally {
+      setAIAction(null);
+    }
+  }
+
+  function handleBack() {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/tickets");
+  }
+
   if (!currentUser) return null;
 
   const isOwner = ticket?.createdByUserId === currentUser.userId;
@@ -345,7 +388,7 @@ export default function TicketDetail() {
           <div className="max-w-[960px] mx-auto">
             <button
               type="button"
-              onClick={() => navigate("/tickets")}
+              onClick={handleBack}
               className="mb-4 text-sm text-[#586760] hover:text-[#143a34] font-medium transition-colors"
             >
               &larr; Back to Tickets
@@ -415,6 +458,50 @@ export default function TicketDetail() {
                 <div className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_4px_16px_rgba(50,36,22,0.06)] mb-6">
                   <h2 className="text-sm font-bold text-[#52625d] m-0 mb-3">Description</h2>
                   <p className="text-sm text-[#26322e] leading-relaxed whitespace-pre-wrap m-0">{ticket.description}</p>
+                </div>
+
+                <div className="rounded-lg border border-[rgba(19,35,30,0.1)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_4px_16px_rgba(50,36,22,0.06)] mb-6">
+                  <p className="text-sm font-bold text-[#52625d] m-0">AI Assistance</p>
+                  <p className="text-[#8a9690] text-xs mt-1 mb-4">Generated guidance should be reviewed before taking action.</p>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      type="button"
+                      onClick={handleGenerateSummary}
+                      disabled={aiAction !== null}
+                      className="px-4 py-2.5 rounded-lg text-sm font-bold bg-[#143a34] text-white hover:bg-[#0d2d28] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {aiAction === "summary" ? "Generating Summary..." : "Generate Summary"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleTroubleshootingSuggestions}
+                      disabled={aiAction !== null}
+                      className="px-4 py-2.5 rounded-lg text-sm font-bold bg-[#faf9f5] text-[#26322e] border border-[#ddded8] hover:bg-white hover:border-[#19b99a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {aiAction === "troubleshooting" ? "Getting Suggestions..." : "Get Troubleshooting Suggestions"}
+                    </button>
+                  </div>
+
+                  {aiError && (
+                    <div className="mt-4 px-4 py-3 rounded-lg bg-[#fdeef2] text-[#b83d5e] border border-[#f5ccd8] text-sm font-medium" role="alert">
+                      {aiError}
+                    </div>
+                  )}
+
+                  {aiSummary && (
+                    <div className="mt-4 px-4 py-3 rounded-lg bg-[#faf9f5] border border-[#ddded8]">
+                      <p className="text-xs font-bold text-[#8a9690] uppercase tracking-wide m-0 mb-2">AI Summary</p>
+                      <p className="text-sm text-[#26322e] leading-relaxed whitespace-pre-wrap m-0">{aiSummary}</p>
+                    </div>
+                  )}
+
+                  {aiTroubleshooting && (
+                    <div className="mt-4 px-4 py-3 rounded-lg bg-[#faf9f5] border border-[#ddded8]">
+                      <p className="text-xs font-bold text-[#8a9690] uppercase tracking-wide m-0 mb-2">Troubleshooting Suggestions</p>
+                      <p className="text-sm text-[#26322e] leading-relaxed whitespace-pre-wrap m-0">{aiTroubleshooting}</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">

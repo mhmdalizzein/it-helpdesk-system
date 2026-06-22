@@ -49,9 +49,9 @@ const sidebarNavItems = [
   { label: 'Tickets', href: '/tickets', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
   { label: 'Create Ticket', href: '/tickets/create', active: false, roles: ['User'] as Role[] },
   { label: 'Notifications', href: '/notifications', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
-  { label: 'Reports', href: '#', active: false, roles: ['Admin'] as Role[] },
-  { label: 'Admin Settings', href: '#', active: false, roles: ['Admin'] as Role[] },
-  { label: 'User Profile', href: '#', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
+  { label: 'Reports', href: '/reports', active: false, roles: ['Admin'] as Role[] },
+  { label: 'Admin Settings', href: '/admin/settings', active: false, roles: ['Admin'] as Role[] },
+  { label: 'User Profile', href: '/profile', active: false, roles: ['Admin', 'Agent', 'User'] as Role[] },
 ]
 
 const accentSwatchClass: Record<string, string> = {
@@ -153,6 +153,8 @@ function getActionRoute(label: string): string | null {
     'Assign Ticket': '/tickets',
     'Update Ticket Status': '/tickets',
     'Add Internal Note': '/tickets',
+    'Generate Report': '/reports',
+    'Manage Users': '/admin/users',
   }
   return map[label] || null
 }
@@ -166,6 +168,7 @@ function Dashboard() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [dashboardLoading, setDashboardLoading] = useState(true)
   const [dashboardError, setDashboardError] = useState('')
+  const unauthorizedMessage = (location.state as { unauthorizedMessage?: string } | null)?.unauthorizedMessage
 
   useEffect(() => {
     if (!currentUser) {
@@ -400,6 +403,12 @@ function Dashboard() {
                   </time>
                 </div>
               </header>
+
+              {unauthorizedMessage && (
+                <div className="mb-4 px-4 py-3 rounded-lg bg-[#fdeef2] text-[#b83d5e] border border-[#f5ccd8] text-sm font-medium" role="alert">
+                  {unauthorizedMessage}
+                </div>
+              )}
 
               {dashboardError && (
                 <div className="mb-4 px-4 py-3 rounded-lg bg-[#fdeef2] text-[#b83d5e] border border-[#f5ccd8] text-sm font-medium">
